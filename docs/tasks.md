@@ -8,13 +8,13 @@
 
 ## Current Sprint: Project Setup
 
-### In Progress [@]
-- [@] Project initialization
+### Completed [x]
+- [x] Project initialization
   - [x] Create directory structure
   - [x] Setup Git repository
-  - [ ] Install dependencies
-  - [ ] Verify environment
-  - **Next**: Create virtual environment and install packages
+  - [x] Install dependencies
+  - [x] Verify environment
+  - **Next**: Start implementing Task A.
 
 ## Task A: Baseline CVaR Index
 
