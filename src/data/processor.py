@@ -29,15 +29,15 @@ class DataProcessor:
             returns = np.log(prices / prices.shift(1))
         else:
             returns = prices.pct_change()
-            
-        # Drop the first row of NaNs
-        return returns.dropna()
+
+        # Drop only the first row, which is guaranteed to be NaN after pct_change/shift
+        return returns.iloc[1:]
 
     def clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Performs basic data cleaning.
         - Forward-fills missing values.
-        - Drops any remaining NaNs (e.g., at the beginning).
+        - Drops rows where ALL values are NaN (e.g. holidays).
 
         Args:
             df (pd.DataFrame): The input DataFrame.
@@ -46,7 +46,8 @@ class DataProcessor:
             pd.DataFrame: The cleaned DataFrame.
         """
         df_cleaned = df.ffill()
-        df_cleaned = df_cleaned.dropna()
+        # Drop rows where all tickers have NaN values, which can happen on holidays
+        df_cleaned = df_cleaned.dropna(how='all')
         return df_cleaned
 
 

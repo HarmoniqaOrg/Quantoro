@@ -21,3 +21,7 @@ Implementation of CVaR-LASSO Enhanced Index Replication (CLEIR) with ML enhancem
 - **Transaction Costs**: 10 bps per side
 - **Rebalancing**: Quarterly
 - **Lookback Window**: 252 trading days
+- **2025-06-25**: Replaced the `pytickersymbols` library with a hardcoded list of 60 tickers. **Reason**: The library provided an unstable list containing non-common stock tickers (e.g., preferred shares), causing silent failures in the data loading pipeline. A fixed list ensures reproducibility and stability.
+- **2025-06-25**: Enhanced the data loader (`FmpDataLoader`) to handle individual ticker API failures gracefully using `asyncio.gather(return_exceptions=True)` instead of failing the entire batch.
+- **2025-06-25**: Switched the default CVXPY solver from `ECOS` to `SCS` to resolve "solver not installed" errors and improve out-of-the-box compatibility.
+- **2025-06-25**: Implemented a fallback mechanism in the rolling backtester to hold previous weights if an optimization step fails, preventing the backtest from crashing and ensuring continuity.

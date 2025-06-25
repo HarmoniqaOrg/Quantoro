@@ -5,6 +5,7 @@ import pandas as pd
 from pathlib import Path
 from dotenv import load_dotenv
 from typing import List, Optional
+import logging
 
 # Load environment variables from .env file
 load_dotenv()
@@ -45,10 +46,10 @@ class FmpDataLoader:
         cache_file = self.cache_dir / f"{ticker}_{start_date}_{end_date}.csv"
         
         if cache_file.exists():
-            print(f"Loading {ticker} data from cache.")
+            logging.info(f"Loading {ticker} data from cache.")
             return pd.read_csv(cache_file, index_col='date', parse_dates=True)
 
-        print(f"Fetching {ticker} data from FMP API.")
+        logging.info(f"Fetching {ticker} data from FMP API.")
         url = f"{self.base_url}/historical-price-full/{ticker}?from={start_date}&to={end_date}&apikey={self.api_key}"
         
         async with aiohttp.ClientSession() as session:
@@ -58,7 +59,7 @@ class FmpDataLoader:
                     data = await response.json()
                     
                     if not data or 'historical' not in data:
-                        print(f"No historical data found for {ticker}")
+                        logging.warning(f"No historical data found for {ticker}")
                         return None
                         
                     df = pd.DataFrame(data['historical'])
@@ -77,13 +78,13 @@ class FmpDataLoader:
                     df.to_csv(cache_file)
                     
                     return df
-            except aiohttp.ClientError as e:
-                print(f"Error fetching data for {ticker}: {e}")
+            except Exception as e:
+                logging.error(f"An exception occurred while fetching data for {ticker}: {e}")
                 return None
 
     async def get_multiple_tickers_data(self, tickers: List[str], start_date: str, end_date: str) -> pd.DataFrame:
         """
-        Fetches historical data for multiple tickers concurrently.
+        Fetches historical data for multiple tickers concurrently and handles exceptions gracefully.
 
         Args:
             tickers (List[str]): A list of stock ticker symbols.
@@ -94,37 +95,39 @@ class FmpDataLoader:
             pd.DataFrame: A DataFrame containing the adjusted close prices for all tickers.
         """
         tasks = [self.get_historical_data(ticker, start_date, end_date) for ticker in tickers]
-        results = await asyncio.gather(*tasks)
+        # Use return_exceptions=True to prevent one failed request from stopping all others.
+        results = await asyncio.gather(*tasks, return_exceptions=True)
         
         all_data = {}
-        for ticker, df in zip(tickers, results):
-            if df is not None and not df.empty:
-                all_data[ticker] = df['adj_close']
+        for ticker, res in zip(tickers, results):
+            if isinstance(res, Exception):
+                # Log the exception to understand why a ticker failed.
+                logging.error(f"Failed to fetch data for {ticker}: {res}")
+            elif res is not None and not res.empty:
+                all_data[ticker] = res['adj_close']
         
         if not all_data:
             return pd.DataFrame()
             
-        combined_df = pd.DataFrame(all_data)
-        combined_df.sort_index(inplace=True)
-        
+        # Ensure consistent columns and handle potential all-NaN series
+        combined_df = pd.concat(all_data, axis=1)
         return combined_df
+
 
 # Example usage:
 async def main():
-    # As per PRD, using 60 most liquid S&P 100 stocks
-    # For this example, let's use a smaller list
-    tickers = ['AAPL', 'MSFT', 'GOOG']
-    start_date = "2020-01-01"
-    end_date = "2023-12-31"
-    
+    # Example: Fetch data for a few tickers
     loader = FmpDataLoader()
-    data = await loader.get_multiple_tickers_data(tickers, start_date, end_date)
+    tickers = ['AAPL', 'MSFT', 'GOOG']
+    start = '2022-01-01'
+    end = '2023-01-01'
     
-    if not data.empty:
-        print("Successfully fetched data:")
-        print(data.head())
-        print("\nData Info:")
-        data.info()
+    price_data = await loader.get_multiple_tickers_data(tickers, start, end)
+    
+    if not price_data.empty:
+        print("Fetched data:")
+        print(price_data.head())
+
 
 if __name__ == '__main__':
     asyncio.run(main())
