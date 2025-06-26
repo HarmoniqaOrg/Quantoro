@@ -116,6 +116,22 @@ async def main():
         performance_metrics.to_csv(metrics_path)
         logging.info("Successfully saved metrics.")
 
+        # --- Save Daily Returns for Plotting ---
+        equal_weighted_returns = asset_returns.mean(axis=1)
+        all_returns = pd.DataFrame({
+            'CVaR Portfolio': portfolio_returns,
+            'SPY Benchmark': benchmark_returns,
+            'Equal-Weighted Benchmark': equal_weighted_returns
+        }).dropna()
+
+        returns_path = results_path / "daily_returns.csv"
+        logging.info(f"Attempting to save daily returns to {returns_path}...")
+        try:
+            all_returns.to_csv(returns_path)
+            logging.info("Successfully saved daily returns.")
+        except Exception as e:
+            logging.error(f"Failed to save daily returns: {e}")
+
         logging.info(f"Results saved to {results_path.resolve()}")
     except Exception as e:
         logging.error(f"CRITICAL: Failed to save results to disk: {e}")
