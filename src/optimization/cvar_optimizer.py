@@ -264,7 +264,8 @@ class RollingCVaROptimizer:
         returns: pd.DataFrame,
         benchmark_returns: pd.Series,
         start_date: Optional[str] = None,
-        end_date: Optional[str] = None
+        end_date: Optional[str] = None,
+        alpha_scores: Optional[pd.DataFrame] = None
     ) -> Tuple[pd.DataFrame, pd.Series]:
         """
         Run rolling window backtest.
@@ -305,7 +306,26 @@ class RollingCVaROptimizer:
             hist_returns = returns.iloc[lookback_start_loc:lookback_end_loc]
             hist_benchmark = benchmark_returns.iloc[lookback_start_loc:lookback_end_loc]
 
-            opt_result = self.optimizer.optimize(hist_returns, hist_benchmark, current_weights)
+            # Check if the optimizer is alpha-aware and if we have scores
+            if isinstance(self.optimizer, AlphaAwareCVaROptimizer) and alpha_scores is not None:
+                # Get the latest alpha scores available up to the rebalance date
+                latest_alpha_scores = alpha_scores.asof(date)
+                if isinstance(latest_alpha_scores, pd.DataFrame): # Handle non-unique index from asof
+                    latest_alpha_scores = latest_alpha_scores.iloc[-1]
+                
+                if latest_alpha_scores.isnull().all():
+                    logger.warning(f"No alpha scores found for {date}. Alpha term will be zero.")
+                else:
+                    logger.info(f"Using alpha scores for optimization on {date}.")
+                
+                opt_result = self.optimizer.optimize(
+                    returns=hist_returns, 
+                    alpha_scores=latest_alpha_scores, 
+                    benchmark_returns=hist_benchmark, 
+                    current_weights=current_weights
+                )
+            else:
+                opt_result = self.optimizer.optimize(hist_returns, hist_benchmark, current_weights)
 
             if opt_result.status in ["optimal", "optimal_inaccurate"] and opt_result.weights is not None:
                 current_weights = opt_result.weights
@@ -363,3 +383,88 @@ class RollingCVaROptimizer:
                     valid_rebalance_dates.append(actual_date)
 
         return pd.DatetimeIndex(valid_rebalance_dates)
+
+
+class AlphaAwareCVaROptimizer(CVaROptimizer):
+    """
+    A CVaR optimizer that incorporates an alpha signal into the objective function.
+    """
+    def __init__(self, alpha: float = 0.95, lasso_penalty: float = 0.01, max_weight: float = 0.05, solver: str = 'SCS', alpha_factor: float = 0.01, transaction_cost: float = 0.001):
+        """
+        Initializes the AlphaAwareCVaROptimizer.
+
+        Args:
+            alpha_factor (float): The weight to give the alpha signal in the objective function.
+                                  A higher value means more emphasis on maximizing alpha.
+        """
+        super().__init__(alpha, lasso_penalty, max_weight, transaction_cost, solver)
+        self.alpha_factor = alpha_factor
+
+    def optimize(
+        self,
+        returns: pd.DataFrame,
+        alpha_scores: pd.Series,
+        benchmark_returns: Optional[pd.Series] = None,
+        current_weights: Optional[np.ndarray] = None
+    ) -> OptimizationResult:
+        """
+        Optimize portfolio to minimize CVaR and maximize alpha.
+        """
+        n_assets = returns.shape[1]
+        n_scenarios = returns.shape[0]
+
+        if benchmark_returns is None:
+            benchmark_returns = returns.mean(axis=1)
+
+        R = returns.values
+        b = benchmark_returns.values.reshape(-1, 1)
+        aligned_alpha = alpha_scores.reindex(returns.columns).fillna(0).values
+
+        w = cp.Variable(n_assets)
+        z = cp.Variable(n_scenarios)
+        zeta = cp.Variable()
+
+        tracking_error = (R @ w) - b.flatten()
+        cvar = zeta + (1.0 / ((1 - self.alpha) * n_scenarios)) * cp.sum(z)
+        portfolio_alpha = w @ aligned_alpha
+
+        objective_terms = [cvar, -self.alpha_factor * portfolio_alpha]
+        if self.lasso_penalty > 0:
+            objective_terms.append(self.lasso_penalty * cp.norm1(w))
+        if current_weights is not None:
+            turnover = cp.sum(cp.abs(w - current_weights))
+            objective_terms.append(self.transaction_cost * turnover)
+
+        objective = cp.Minimize(cp.sum(objective_terms))
+        constraints = [
+            z >= 0,
+            z >= -tracking_error - zeta,
+            cp.sum(w) == 1,
+            w >= 0,
+            w <= self.max_weight,
+        ]
+
+        problem = cp.Problem(objective, constraints)
+        problem.solve(solver=self.solver, verbose=False)
+
+        if problem.status not in ["optimal", "optimal_inaccurate"]:
+            return OptimizationResult(
+                weights=np.full(n_assets, np.nan), status=problem.status, cvar=np.nan,
+                portfolio_return=np.nan, portfolio_volatility=np.nan, tracking_error=np.nan, turnover=np.nan, solve_time=0.0
+            )
+
+        optimal_weights = w.value
+        portfolio_ret_series = R @ optimal_weights
+        tracking_err_series = portfolio_ret_series - b.flatten()
+        turnover_val = np.sum(np.abs(optimal_weights - current_weights)) if current_weights is not None else 0.0
+
+        return OptimizationResult(
+            weights=optimal_weights,
+            cvar=cvar.value,
+            portfolio_return=np.mean(portfolio_ret_series),
+            portfolio_volatility=np.std(portfolio_ret_series),
+            tracking_error=np.std(tracking_err_series),
+            turnover=turnover_val,
+            status=problem.status,
+            solve_time=problem.solver_stats.solve_time or 0.0,
+        )

@@ -25,3 +25,7 @@ Implementation of CVaR-LASSO Enhanced Index Replication (CLEIR) with ML enhancem
 - **2025-06-25**: Enhanced the data loader (`FmpDataLoader`) to handle individual ticker API failures gracefully using `asyncio.gather(return_exceptions=True)` instead of failing the entire batch.
 - **2025-06-25**: Switched the default CVXPY solver from `ECOS` to `SCS` to resolve "solver not installed" errors and improve out-of-the-box compatibility.
 - **2025-06-25**: Implemented a fallback mechanism in the rolling backtester to hold previous weights if an optimization step fails, preventing the backtest from crashing and ensuring continuity.
+- **2025-06-26**: Designed and implemented an alpha-aware optimization strategy. **Components**:
+    - **Data Source**: Financial Modeling Prep (FMP) for alternative data signals (analyst recommendations, insider trading).
+    - **Signal Processing**: A `SignalProcessor` class normalizes and combines raw signals into a single composite alpha score per asset.
+    - **Optimization**: The `AlphaAwareCVaROptimizer` modifies the core CVaR objective function to `Minimize(CVaR - alpha_factor * PortfolioAlpha)`, creating a dual-objective to balance risk minimization with alpha maximization.

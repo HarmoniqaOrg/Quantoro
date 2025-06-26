@@ -43,21 +43,23 @@
   - [x] Run out-of-sample backtest (2020-2024).
   - [x] Generate performance comparison and interpretability analysis (e.g., SHAP).
 - **Acceptance**: Improves Sharpe by >0.1
+- [x] **Reporting**
+  - [x] Generate model interpretability output (e.g., feature importance).
+  - [x] Write method note (≤400 words) for report.
 
 ## Task C: Alternative Data (FMP)
 
-### Pending [ ]
-- [ ] **FMP API Integration**
-  - [ ] Integrate FMP API for alternative data.
-- [ ] **Microstructure Signals**
-  - [ ] Develop microstructure signals.
-- [ ] **Smart Money Tracking**
-  - [ ] Implement smart money tracking.
-- [ ] **Alpha Signal Generation**
-  - [ ] Generate alpha signals.
-- [ ] Microstructure signals.
-- [ ] Smart money tracking.
-- [ ] Alpha signal generation.
+### Completed [x] 
+- [x] **FMP API Integration**
+  - [x] Implemented `FmpPremiumSignals` to fetch analyst and insider data.
+- [x] **Alpha Signal Generation**
+  - [x] Implemented `SignalProcessor` to create a composite alpha score.
+- [x] **Optimizer Integration**
+  - [x] Created `AlphaAwareCVaROptimizer` to use alpha scores in the objective.
+  - [x] Updated `RollingCVaROptimizer` to be compatible with the new optimizer.
+- [x] **Evaluation**
+  - [x] Run and debug the final `run_alpha_backtest.py` script.
+  - [x] Analyze performance metrics of the alpha-aware strategy.
 - **Acceptance**: Additional 1-1.5% alpha
 
 ## Issues/Blockers [!]

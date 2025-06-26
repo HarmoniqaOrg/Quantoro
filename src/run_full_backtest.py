@@ -56,6 +56,19 @@ async def main():
     logging.info(f"Fetching price data for {len(all_tickers)} tickers from {START_DATE} to {END_DATE}...")
     price_data = await loader.get_multiple_tickers_data(all_tickers, start_date=START_DATE, end_date=END_DATE)
 
+    # --- Save Price Data --- 
+    # This is needed by other scripts like the alpha backtest
+    results_path = Path("results")
+    results_path.mkdir(exist_ok=True)
+    price_data_path = results_path / "sp500_prices_2010_2024.csv"
+    try:
+        logging.info(f"Saving raw price data to {price_data_path}...")
+        price_data.to_csv(price_data_path)
+        logging.info("Successfully saved raw price data.")
+    except Exception as e:
+        logging.error(f"Failed to save price data: {e}")
+
+
     returns_data = processor.calculate_returns(price_data)
     cleaned_returns = processor.clean_data(returns_data)
 
