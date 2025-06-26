@@ -66,7 +66,7 @@ regime_plot_md = f"\n![Regime Analysis]({REGIME_PLOT})"
 # Reflections
 reflections = """
 ## Reflections & Conclusion
-This project successfully demonstrated an end-to-end quantitative research workflow. The baseline CVaR model provided a solid foundation. The regime-aware enhancement (Task B) proved effective, showcasing how a simple HMM can identify high-volatility periods and allow the strategy to adapt defensively. The alpha-aware model (Task C) showed the potential of integrating alternative data, though its performance indicates that more sophisticated signal combination and risk management are required to fully exploit its potential.
+This project successfully demonstrated an end-to-end quantitative research workflow. The baseline CVaR model provided a solid foundation. The regime-aware enhancement (Task B) proved effective, showcasing how a simple SMA crossover can identify high-volatility periods and allow the strategy to adapt defensively. The alpha-aware model (Task C) showed the potential of integrating alternative data, though its performance indicates that more sophisticated signal combination and risk management are required to fully exploit its potential.
 
 Key learnings include the importance of robust data pipelines, the challenges of feature engineering for financial markets, and the necessity of a rigorous backtesting framework. The results highlight that while complexity can add value, simple, interpretable models often provide the most robust performance enhancements.
 """
