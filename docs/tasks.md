@@ -42,10 +42,12 @@
 - [x] **Evaluation & Reporting**
   - [x] Run out-of-sample backtest (2020-2024).
   - [x] Generate performance comparison and interpretability analysis (e.g., SHAP).
-- **Acceptance**: Improves Sharpe by >0.1
 - [x] **Reporting**
-  - [x] Generate model interpretability output (e.g., feature importance).
-  - [x] Write method note (≤400 words) for report.
+- [x] Write a 400-word summary of the regime-aware methodology for the final report.
+- [x] Create the regime change interpretability report (visualizations and analysis).
+- [x] Assemble the final `report.md` draft.
+- [x] **Final Step:** Convert `report.md` to `report.pdf` for submission.
+- **Acceptance**: Improves Sharpe by >0.1
 
 ## Task C: Alternative Data (FMP)
 
@@ -59,7 +61,9 @@
   - [x] Updated `RollingCVaROptimizer` to be compatible with the new optimizer.
 - [x] **Evaluation**
   - [x] Run and debug the final `run_alpha_backtest.py` script.
-  - [x] Analyze performance metrics of the alpha-aware strategy.
+  - [x] Fix `run_alpha_backtest.py` script (blocked by `ImportError`).
+  - [x] Fix `dashboard.py` plotting errors (ValueError, TypeError).
+  - [x] Generate final `comprehensive_dashboard.png` with all results.
 - **Acceptance**: Additional 1-1.5% alpha
 
 ## Issues/Blockers [!]

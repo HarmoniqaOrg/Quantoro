@@ -29,3 +29,14 @@ Implementation of CVaR-LASSO Enhanced Index Replication (CLEIR) with ML enhancem
     - **Data Source**: Financial Modeling Prep (FMP) for alternative data signals (analyst recommendations, insider trading).
     - **Signal Processing**: A `SignalProcessor` class normalizes and combines raw signals into a single composite alpha score per asset.
     - **Optimization**: The `AlphaAwareCVaROptimizer` modifies the core CVaR objective function to `Minimize(CVaR - alpha_factor * PortfolioAlpha)`, creating a dual-objective to balance risk minimization with alpha maximization.
+
+## 6. Success Metrics
+
+- **Primary Metric**: The enhanced strategy (Task B) must outperform the baseline strategy (Task A) on a risk-adjusted basis (Sharpe Ratio) over the 2020-2024 backtest period. **(Achieved)**
+- **Secondary Metric**: The final report must be clear, professional, and fully reproducible. **(Achieved)**
+
+## 7. Final Project Status
+
+**Status: Completed**
+
+All tasks outlined in the assignment have been successfully implemented, backtested, and documented. The final deliverables, including the comprehensive `report.pdf`, all source code, and result files, have been generated and are ready for submission.

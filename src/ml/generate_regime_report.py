@@ -33,6 +33,11 @@ def generate_regime_plot(prices: pd.DataFrame, results_dir: str):
     sma_short = market_prices.rolling(window=detector.lookback_short).mean()
     sma_long = market_prices.rolling(window=detector.lookback_long).mean()
 
+    # Save the regime timeseries for the dashboard
+    regime_output_path = os.path.join(results_dir, 'regime_ts.csv')
+    regimes.to_csv(regime_output_path, header=True)
+    logging.info(f"Regime timeseries saved to {regime_output_path}")
+
     logging.info("Generating plot...")
     fig, ax = plt.subplots(figsize=(15, 8))
 

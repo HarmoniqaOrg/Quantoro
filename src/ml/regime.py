@@ -41,3 +41,90 @@ class RegimeDetector:
         regime = (sma_short > sma_long).astype(int)
         
         return regime.rename("regime")
+
+    def get_regime_statistics(self, regimes: pd.Series) -> dict:
+        """
+        Calculate regime duration and transition probabilities.
+
+        Args:
+            regimes (pd.Series): A pandas Series of regime signals (1 for risk-on, 0 for risk-off).
+
+        Returns:
+            dict: A dictionary containing average regime duration and the transition matrix.
+        """
+        if regimes.empty or regimes.nunique() < 2:
+            return {
+                'avg_duration_days': float('nan'),
+                'transition_matrix': pd.DataFrame()
+            }
+            
+        # Calculate durations of consecutive regimes
+        regime_changes = regimes.diff().fillna(0) != 0
+        # The size of each group of consecutive non-changes gives the duration
+        regime_durations = regimes.groupby(regime_changes.cumsum()).size()
+
+        # Transition matrix
+        transitions = pd.crosstab(regimes.shift(1), regimes, normalize='index')
+        
+        return {
+            'avg_duration_days': regime_durations.mean(),
+            'transition_matrix': transitions
+        }
+
+    def get_regime_statistics(self, regimes: pd.Series) -> dict:
+        """
+        Calculate regime duration and transition probabilities.
+
+        Args:
+            regimes (pd.Series): A pandas Series of regime signals (1 for risk-on, 0 for risk-off).
+
+        Returns:
+            dict: A dictionary containing average regime duration and the transition matrix.
+        """
+        if regimes.empty or regimes.nunique() < 2:
+            return {
+                'avg_duration_days': float('nan'),
+                'transition_matrix': pd.DataFrame()
+            }
+            
+        # Calculate durations of consecutive regimes
+        regime_changes = regimes.diff().fillna(0) != 0
+        # The size of each group of consecutive non-changes gives the duration
+        regime_durations = regimes.groupby(regime_changes.cumsum()).size()
+
+        # Transition matrix
+        transitions = pd.crosstab(regimes.shift(1), regimes, normalize='index')
+        
+        return {
+            'avg_duration_days': regime_durations.mean(),
+            'transition_matrix': transitions
+        }
+
+    def get_regime_statistics(self, regimes: pd.Series) -> dict:
+        """
+        Calculate regime duration and transition probabilities.
+
+        Args:
+            regimes (pd.Series): A pandas Series of regime signals (1 for risk-on, 0 for risk-off).
+
+        Returns:
+            dict: A dictionary containing average regime duration and the transition matrix.
+        """
+        if regimes.empty or regimes.nunique() < 2:
+            return {
+                'avg_duration_days': float('nan'),
+                'transition_matrix': pd.DataFrame()
+            }
+            
+        # Calculate durations of consecutive regimes
+        regime_changes = regimes.diff().fillna(0) != 0
+        # The size of each group of consecutive non-changes gives the duration
+        regime_durations = regimes.groupby(regime_changes.cumsum()).size()
+
+        # Transition matrix
+        transitions = pd.crosstab(regimes.shift(1), regimes, normalize='index')
+        
+        return {
+            'avg_duration_days': regime_durations.mean(),
+            'transition_matrix': transitions
+        }

@@ -29,6 +29,8 @@ pytickersymbols>=1.0.18,<2.0.0
 matplotlib>=3.5.0,<4.0.0
 seaborn>=0.11.0,<1.0.0
 plotly>=5.3.0,<6.0.0
+dataframe-image>=0.1.1
+lxml>=4.9.1
 
 # Development tools
 black>=22.0.0,<23.0.0
@@ -41,6 +43,8 @@ tqdm>=4.62.0,<5.0.0
 
 # Jupyter
 jupyter>=1.0.0
+markdown-pdf>=1.1.1
+tabulate>=0.9.0
 ipykernel>=6.4.0
 nbformat>=5.7.0
 

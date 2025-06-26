@@ -36,7 +36,7 @@ class CVaROptimizer:
     def __init__(
         self,
         alpha: float = 0.95,
-        lasso_penalty: float = 0.01,  # Lowered for sensible default
+        lasso_penalty: float = 1.5,  # Default as per CLEIR paper  # Lowered for sensible default
         max_weight: float = 0.05,
         transaction_cost: float = 0.001,
         solver: str = 'SCS'
@@ -235,6 +235,30 @@ class CVaROptimizer:
         tail_losses = returns[returns <= var_threshold]
         return -tail_losses.mean() if len(tail_losses) > 0 else 0.0
 
+    def calculate_risk_decomposition(self, returns: pd.DataFrame, weights: np.ndarray) -> pd.Series:
+        """
+        Calculate risk contribution by asset based on portfolio variance.
+
+        Args:
+            returns (pd.DataFrame): DataFrame of asset returns.
+            weights (np.ndarray): Array of portfolio weights.
+
+        Returns:
+            pd.Series: Series of risk contributions for each asset.
+        """
+        portfolio_variance = weights.T @ returns.cov().values @ weights
+        if portfolio_variance < 1e-9:
+            return pd.Series(np.zeros_like(weights), index=returns.columns)
+        
+        # Marginal Contribution to Risk (MCTR)
+        mctr = returns.cov().values @ weights
+        
+        # Risk Contribution (RC) = weight * MCTR / portfolio_stdev
+        portfolio_stdev = np.sqrt(portfolio_variance)
+        risk_contribution = weights * mctr / portfolio_stdev
+        
+        return pd.Series(risk_contribution, index=returns.columns)
+
 
 class RollingCVaROptimizer:
     """
@@ -258,6 +282,10 @@ class RollingCVaROptimizer:
         self.optimizer = optimizer
         self.lookback_window = lookback_window
         self.rebalance_frequency = rebalance_frequency
+        self.original_params = {
+            'max_weight': optimizer.max_weight,
+            'lasso_penalty': optimizer.lasso_penalty
+        }
 
     def backtest(
         self,
@@ -265,7 +293,8 @@ class RollingCVaROptimizer:
         benchmark_returns: pd.Series,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        alpha_scores: Optional[pd.DataFrame] = None
+        alpha_scores: Optional[pd.DataFrame] = None,
+        regimes: Optional[pd.Series] = None
     ) -> Tuple[pd.DataFrame, pd.Series]:
         """
         Run rolling window backtest.
@@ -305,6 +334,18 @@ class RollingCVaROptimizer:
             
             hist_returns = returns.iloc[lookback_start_loc:lookback_end_loc]
             hist_benchmark = benchmark_returns.iloc[lookback_start_loc:lookback_end_loc]
+
+            # Adjust optimizer parameters based on regime if provided
+            if regimes is not None:
+                current_regime = regimes.asof(date)
+                if current_regime == 0:  # Risk-off
+                    logger.info(f"Risk-off regime on {date}. Using defensive parameters.")
+                    self.optimizer.max_weight = 0.03  # More defensive
+                    self.optimizer.lasso_penalty = self.original_params['lasso_penalty'] * 1.5 # Higher penalty
+                else:  # Risk-on or no regime
+                    logger.info(f"Risk-on regime on {date}. Using standard parameters.")
+                    self.optimizer.max_weight = self.original_params['max_weight']
+                    self.optimizer.lasso_penalty = self.original_params['lasso_penalty']
 
             # Check if the optimizer is alpha-aware and if we have scores
             if isinstance(self.optimizer, AlphaAwareCVaROptimizer) and alpha_scores is not None:

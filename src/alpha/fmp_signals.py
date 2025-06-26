@@ -88,23 +88,36 @@ class FmpPremiumSignals:
                 processed_results[name] = result
         return processed_results
 
-    async def get_all_signals_for_universe(self, tickers: List[str]) -> Dict[str, Dict[str, pd.DataFrame]]:
+    async def get_all_signals_for_universe(self, tickers: List[str], concurrency_limit: int = 5) -> Dict[str, Dict[str, pd.DataFrame]]:
         """
-        Fetches all signals for a universe of tickers.
+        Fetches all signals for a universe of tickers with controlled concurrency to avoid rate limiting.
         
+        Args:
+            tickers (List[str]): The list of stock tickers.
+            concurrency_limit (int): The maximum number of concurrent API requests.
+
         Returns:
             Dict[str, Dict[str, pd.DataFrame]]: A nested dictionary where the outer key is the ticker
                                                and the inner key is the signal type.
         """
         all_signals = {}
+        semaphore = asyncio.Semaphore(concurrency_limit)
+
+        async def fetch_with_semaphore(session, ticker):
+            """Wrapper to control concurrency for each ticker's signal fetching."""
+            async with semaphore:
+                return await self.get_all_signals_for_ticker(session, ticker)
+
         async with aiohttp.ClientSession() as session:
-            tasks = [self.get_all_signals_for_ticker(session, ticker) for ticker in tickers]
+            tasks = [fetch_with_semaphore(session, ticker) for ticker in tickers]
             results = await asyncio.gather(*tasks, return_exceptions=True)
+            
             for ticker, signal_data in zip(tickers, results):
                 if isinstance(signal_data, Exception):
                     logging.error(f"Failed to fetch all signals for {ticker}: {signal_data}")
-                    all_signals[ticker] = {}
+                    all_signals[ticker] = {}  # Ensure failed tickers have an entry
                 else:
                     all_signals[ticker] = signal_data
+                    
         logging.info("Successfully fetched all premium signals for the universe.")
         return all_signals

@@ -19,20 +19,28 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.data.loader import FmpDataLoader
 from src.data.processor import DataProcessor
 from src.optimization.cvar_optimizer import CVaROptimizer, RollingCVaROptimizer
-from src.backtesting.metrics import calculate_performance_metrics
+from src.backtesting.metrics import calculate_raw_metrics, format_metrics_for_display
 from src.ml.regime import RegimeDetector
 
 class RegimeAwareCVaROptimizer(CVaROptimizer):
     """An optimizer that adjusts parameters based on the market regime."""
     def optimize_with_regime(self, returns, benchmark_returns, regime, current_weights=None):
         if regime == 0:  # Risk-off
-            logging.info("Regime: Risk-Off. Using conservative parameters.")
             self.alpha = 0.99
-            self.lasso_penalty = 0.005
+            self.lasso_penalty = 0.5  # Less sparsity, more diversification in crisis
+            self.max_weight = 0.04    # Lower concentration
+            logging.info(
+                f"Entering RISK-OFF regime. Adjusting CVaR alpha to {self.alpha}, "
+                f"LASSO to {self.lasso_penalty}, max_weight to {self.max_weight}."
+            )
         else:  # Risk-on
-            logging.info("Regime: Risk-On. Using standard parameters.")
             self.alpha = 0.95
-            self.lasso_penalty = 0.01
+            self.lasso_penalty = 2.0  # More sparsity, concentrate on winners
+            self.max_weight = 0.05
+            logging.info(
+                f"Entering RISK-ON regime. Adjusting CVaR alpha to {self.alpha}, "
+                f"LASSO to {self.lasso_penalty}, max_weight to {self.max_weight}."
+            )
         
         return self.optimize(returns, benchmark_returns, current_weights)
 
@@ -59,6 +67,7 @@ async def main():
     START_DATE = "2019-01-01"  # Start earlier to have enough data for long SMA
     END_DATE = "2024-12-31"
     BACKTEST_START_DATE = "2020-01-01"
+    BACKTEST_END_DATE = "2024-12-31"
 
     # --- Data Loading and Processing ---
     loader = FmpDataLoader(api_key=FMP_API_KEY)
@@ -86,7 +95,7 @@ async def main():
     # Custom backtest loop to include regime
     logging.info("Starting regime-aware rolling backtest...")
     lookback = 252
-    rebalance_dates = pd.date_range(start=BACKTEST_START_DATE, end=END_DATE, freq='BQ').to_series()
+    rebalance_dates = pd.date_range(start=BACKTEST_START_DATE, end=BACKTEST_END_DATE, freq='BQ').to_series()
     rebalance_dates = rebalance_dates[rebalance_dates.isin(asset_returns.index)]
 
     all_weights = {}
@@ -99,33 +108,75 @@ async def main():
         current_regime = regime_signals.loc[date]
 
         try:
-            opt_result = regime_optimizer.optimize_with_regime(hist_returns, hist_benchmark, current_regime, current_weights)
-            if opt_result['status'] == 'optimal':
-                current_weights = opt_result['weights']
+            # Pass numpy array for current_weights and use attribute access for results
+            opt_result = regime_optimizer.optimize_with_regime(
+                hist_returns, hist_benchmark, current_regime, current_weights.values
+            )
+            
+            if opt_result and opt_result.status in ['optimal', 'optimal_inaccurate']:
+                current_weights = pd.Series(opt_result.weights, index=hist_returns.columns)
+                logging.info(f"Rebalanced on {date}: CVaR={opt_result.cvar:.4f}, Status={opt_result.status}")
             else:
-                logging.warning(f"Optimization non-optimal on {date}. Holding weights.")
+                status = opt_result.status if opt_result else 'unknown failure'
+                logging.warning(f"Optimization non-optimal on {date} with status {status}. Holding weights.")
+        
         except Exception as e:
             logging.error(f"Optimization failed on {date}: {e}. Holding weights.")
         
         all_weights[date] = current_weights
 
     weights_df = pd.DataFrame(all_weights).T.reindex(asset_returns.index, method='ffill').dropna()
-    portfolio_returns = (weights_df * asset_returns).sum(axis=1).loc[BACKTEST_START_DATE:]
+    portfolio_returns = (weights_df * asset_returns).sum(axis=1).loc[BACKTEST_START_DATE:BACKTEST_END_DATE]
 
     logging.info("Backtest completed.")
 
     # --- Calculate and Save Performance Metrics ---
     aligned_benchmark = benchmark_returns.loc[portfolio_returns.index]
-    performance_metrics = calculate_performance_metrics(portfolio_returns, aligned_benchmark)
+    raw_metrics = calculate_raw_metrics(portfolio_returns, aligned_benchmark)
+    display_metrics = format_metrics_for_display(raw_metrics, portfolio_returns)
+    
+    # Print metrics to console
+    logging.info("\n--- Regime-Aware Performance Metrics ---\n" + display_metrics.to_string())
 
-    results_path = Path("results")
-    (results_path).mkdir(exist_ok=True)
-    metrics_path = results_path / "enhanced_cvar_performance_metrics.csv"
-    performance_metrics.to_csv(metrics_path)
+    # --- Save Results ---
+    logging.info("Saving Enhanced CVaR results...")
+    results_dir = Path("results")
+    results_dir.mkdir(exist_ok=True)
 
-    logging.info(f"Enhanced performance metrics saved to {metrics_path}")
-    print("\n--- Enhanced Performance Metrics ---")
-    print(performance_metrics)
+    # Save weights and metrics
+    weights_df = pd.DataFrame(all_weights).T
+    weights_df.index.name = 'Date'
+    weights_path = results_dir / 'enhanced_cvar_weights.csv'
+    weights_df.to_csv(weights_path)
+    logging.info(f"Enhanced CVaR weights saved to {weights_path}")
+    
+    raw_metrics.to_csv(results_dir / 'enhanced_cvar_performance_metrics.csv', header=True)
+    logging.info(f"Enhanced CVaR metrics saved to {results_dir / 'enhanced_cvar_performance_metrics.csv'}")
+
+    # --- Update Consolidated Returns ---
+    logging.info(f"Updating consolidated returns file: {results_dir / 'daily_returns.csv'}")
+    try:
+        consolidated_returns_path = results_dir / 'daily_returns.csv'
+        consolidated_returns = pd.read_csv(consolidated_returns_path, index_col=0, parse_dates=True)
+        
+        column_name = 'regime_aware_cvar_index'
+        if column_name in consolidated_returns.columns:
+            consolidated_returns = consolidated_returns.drop(columns=[column_name])
+        
+        portfolio_returns.name = column_name
+        consolidated_returns = consolidated_returns.join(portfolio_returns, how='outer')
+        consolidated_returns.to_csv(consolidated_returns_path)
+        logging.info("Successfully updated consolidated returns.")
+
+    except FileNotFoundError:
+        logging.error("daily_returns.csv not found. It should be created by the baseline backtest first. Aborting.")
+        return # Exit if the base file doesn't exist
+    except Exception as e:
+        logging.error(f"Failed to update consolidated returns: {e}")
+
+    logging.info("--- Enhanced Backtest Complete ---")
+
+
 
 if __name__ == "__main__":
     asyncio.run(main())
