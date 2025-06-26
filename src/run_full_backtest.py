@@ -80,8 +80,12 @@ async def main():
         rebalance_frequency='Q'  # Quarterly
     )
 
-    logging.info("Starting rolling backtest...")
-    rebalance_results, portfolio_returns = rolling_optimizer.backtest(asset_returns, benchmark_returns)
+    logging.info("Starting rolling backtest for the 2020-2024 period...")
+    rebalance_results, portfolio_returns = rolling_optimizer.backtest(
+        asset_returns, 
+        benchmark_returns, 
+        start_date="2020-01-01"
+    )
 
     logging.info("Backtest completed.")
 
@@ -98,8 +102,8 @@ async def main():
     results_path = Path("results")
     results_path.mkdir(exist_ok=True)
 
-    weights_path = results_path / "cvar_rebalance_weights.csv"
-    metrics_path = results_path / "cvar_performance_metrics.csv"
+    weights_path = results_path / "baseline_cvar_rebalance_weights_2020-2024.csv"
+    metrics_path = results_path / "baseline_cvar_performance_metrics_2020-2024.csv"
 
     try:
         logging.info(f"Attempting to save weights to {weights_path}...")

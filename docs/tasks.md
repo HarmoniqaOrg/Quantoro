@@ -26,30 +26,35 @@
   - [x] Ran full backtest for the entire period (2010-2024).
   - [x] Calculated all required performance metrics (Sharpe, Drawdown, etc.).
   - [x] Generated final CSV output for weights and performance metrics.
-
-### Pending [ ]
-- [ ] **Generate Final Plots**
-  - [ ] Plot CVaR index performance against equal-weighted and cap-weighted benchmarks.
+- [x] **Generate Final Plots**
+  - [x] Plot CVaR index performance against equal-weighted and cap-weighted benchmarks.
 
 ## Task B: ML Enhancements
 
-### Pending [ ]
-- [ ] **Research & Design**
-  - [ ] Choose an ML enhancement strategy (e.g., regime detection, tail-risk model).
-  - [ ] Identify necessary data sources.
-  - [ ] Design the model architecture and backtesting integration plan.
-- [ ] **Implementation**
-  - [ ] Implement the ML model.
-  - [ ] Integrate the model into the backtesting framework.
-- [ ] **Evaluation & Reporting**
-  - [ ] Run out-of-sample backtest (2020-2024).
-  - [ ] Generate performance comparison and interpretability analysis (e.g., SHAP).
+### Completed [x]
+- [x] **Research & Design**
+  - [x] Choose an ML enhancement strategy (e.g., regime detection, tail-risk model).
+  - [x] Identify necessary data sources.
+  - [x] Design the model architecture and backtesting integration plan.
+- [x] **Implementation**
+  - [x] Implement the ML model.
+  - [x] Integrate the model into the backtesting framework.
+- [x] **Evaluation & Reporting**
+  - [x] Run out-of-sample backtest (2020-2024).
+  - [x] Generate performance comparison and interpretability analysis (e.g., SHAP).
 - **Acceptance**: Improves Sharpe by >0.1
 
 ## Task C: Alternative Data (FMP)
 
 ### Pending [ ]
-- [ ] FMP API integration for alternative data.
+- [ ] **FMP API Integration**
+  - [ ] Integrate FMP API for alternative data.
+- [ ] **Microstructure Signals**
+  - [ ] Develop microstructure signals.
+- [ ] **Smart Money Tracking**
+  - [ ] Implement smart money tracking.
+- [ ] **Alpha Signal Generation**
+  - [ ] Generate alpha signals.
 - [ ] Microstructure signals.
 - [ ] Smart money tracking.
 - [ ] Alpha signal generation.
