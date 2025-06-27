@@ -1,7 +1,7 @@
 # Final Report: Enhanced CVaR Optimization Strategies
 
-**Author:** [Your Name]
-**Date:** October 26, 2023
+**Author:** Pierre Neuman
+**Date:** June 28, 2025
 
 ## 1. Executive Summary
 
@@ -12,10 +12,16 @@ This report details the development and backtesting of a sophisticated portfolio
 ## 2. Introduction
 
 ### 2.1. Problem Statement
-*(Describe the limitations of traditional portfolio optimization methods and the opportunity to improve upon them using CVaR, machine learning, and alternative data.)*
+Traditional portfolio optimization methods, such as Markowitz's Mean-Variance Optimization, often fall short as they rely on historical data and assume normal return distributions. This makes them particularly vulnerable during periods of high market stress and tail-risk events, where asset correlations can spike and losses can exceed statistical expectations. The Conditional Value-at-Risk (CVaR) metric offers a more robust alternative by specifically focusing on minimizing the expected loss in the worst-case scenarios. However, even a static CVaR model can be improved. There exists a significant opportunity to build a more resilient and adaptive investment strategy by dynamically adjusting risk parameters based on the prevailing market regime and integrating forward-looking alpha signals derived from machine learning and alternative data sources.
 
 ### 2.2. Project Objectives
-*(Clearly state the three main tasks: baseline CVaR implementation, regime-aware enhancement, and alpha-aware integration.)*
+The project was structured around three progressive tasks designed to build and enhance a CVaR-based investment strategy:
+
+1.  **Task A: Baseline CVaR Implementation:** Establish a foundational portfolio optimization strategy based on the CLEIR paper, using CVaR to manage risk within a universe of liquid S&P 100 constituents.
+
+2.  **Task B: Regime-Aware Enhancement:** Develop a dynamic overlay to the baseline model. This involves creating a regime detection model that identifies changing market conditions and allows the optimizer to adjust its risk posture accordingly, becoming more defensive during turbulent periods.
+
+3.  **Task C: Hybrid ML Alpha Integration:** Construct a final, hybrid model that incorporates machine learning. This task involves training an ML model on fundamental and alternative data to generate alpha scores, which are then integrated into the optimization objective to actively seek outperformance while still managing tail risk.
 
 ---
 
