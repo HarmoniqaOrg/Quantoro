@@ -8,21 +8,20 @@
 
 Following a comprehensive review of the completed baseline project, a strategic decision was made to elevate the implementation from a standard academic exercise to a competition-grade quantitative strategy. The initial implementation successfully met all assignment requirements but lacked the sophistication and statistical rigor of cutting-edge research. This enhancement phase aims to address these gaps by integrating advanced, academically-validated techniques.
 
-### 2. Core Enhancements & Academic Grounding
+### 2. Refined Enhancement Strategy
 
-The sprint focuses on three high-impact areas, each grounded in published research:
+Based on empirical results and model performance, the enhancement strategy has been refined to prioritize robustness and proven alpha sources:
 
-1.  **Dynamic Alpha Strategy (Task C Enhancement)**: The static alpha signal model will be replaced with a dynamic system incorporating:
-    *   **Cross-Asset Momentum**: Implementing signals based on the findings of *Pitkäjärvi et al. (2020), "Cross-asset signals and time series momentum"*. This research demonstrates that past bond returns can predict future equity returns.
-    *   **Feature Selection**: Employing the Boruta algorithm (*Kursa & Rudnicki, 2010*) to systematically select the most potent alpha factors, reducing noise and overfitting.
+1.  **Ensemble Regime Detection (Task B Fix)**: The standalone MRS-GARCH model demonstrated flawed logic. It will be replaced by a robust ensemble model combining the strengths of two diverse approaches:
+    *   **Simple Moving Average (SMA) Crossover**: The original, highly interpretable, and proven baseline model will provide the primary trend signal (70% weight).
+    *   **Corrected MRS-GARCH Model**: The MRS-GARCH detector's logic will be fixed to correctly identify high-volatility regimes. It will serve as a secondary, more nuanced signal based on market microstructure (30% weight).
+    *   **Academic Grounding**: This ensemble approach is grounded in research showing that combining diverse, weakly correlated models yields more robust results than a single complex model (*Timmermann, 2006, "Forecast Combinations"*).
 
-2.  **Sophisticated Regime Detection (Task B Enhancement)**: The simple SMA-crossover model will be replaced by a more robust regime detection engine:
-    *   **MRS-GARCH Model**: Implementing a Multivariate Regime-Switching GARCH model as described by *Peng et al. (2022), "Portfolio Optimization on Multivariate Regime-Switching GARCH Model"*. This captures shifts in volatility, skewness, and kurtosis for more accurate regime identification.
-    *   **Dynamic Risk Budgeting**: The optimizer will be upgraded to use the continuous output of the regime model to dynamically adjust risk parameters (CVaR alpha, LASSO penalty, position limits), following the continuous adjustment framework proposed by *Pesenti et al. (2023), "Risk Budgeting Allocation for Dynamic Risk Measures"*.
+2.  **Advanced Alpha Strategy (Task C Enhancement)**: To boost alpha generation, we will enhance the existing FMP signal processor with a new, academically-backed signal:
+    *   **Cross-Asset Momentum**: Implementing signals based on the findings of *Pitkäjärvi et al. (2020), "Cross-asset signals and time series momentum"*. This strategy leverages the predictive power of bond market returns (proxied by SPY) on future equity performance.
+    *   **Hand-Picked Feature Selection**: The automated Boruta feature selection process proved ineffective (selecting zero features). We are pivoting to a domain-knowledge-based approach, creating a curated list of high-signal features (e.g., `AAPL_insider_trades`, `NVDA_analyst_recs`) in a dedicated `feature_config.py`. This pragmatic approach prioritizes signal quality over automated complexity.
 
-3.  **Rigorous Statistical Validation**: To prove the strategy's efficacy, we will add:
-    *   **Bootstrap Significance Testing**: Using stationary bootstrap methods (*Efron & Tibshirani, 1993*) to generate robust confidence intervals for key performance metrics, validating that outperformance is not due to chance.
-    *   **Academic-Quality Visualizations**: Creating publication-standard plots to clearly communicate the strategy's mechanics and performance drivers.
+3.  **Balanced Optimizer Parameters**: Based on backtest results, the `RegimeAwareCVaROptimizer`'s parameters will be adjusted to a more balanced and practical range (e.g., CVaR alpha from 0.93 to 0.97), avoiding the extreme risk-on/off postures that can lead to instability.
 
 ### 3. Expected Outcomes
 

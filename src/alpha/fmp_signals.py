@@ -3,6 +3,8 @@ import pandas as pd
 import aiohttp
 import asyncio
 import logging
+import json
+import time
 from typing import List, Dict, Any
 
 # Configure logging
@@ -15,23 +17,42 @@ class FmpPremiumSignals:
     """
     BASE_URL = "https://financialmodelingprep.com/api"
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, cache_dir: str = 'data/cache/fmp_signals'):
         """
         Initializes the FmpPremiumSignals client.
 
         Args:
             api_key (str): Your Financial Modeling Prep API key.
+            cache_dir (str): Directory to store cached API responses.
         """
         if not api_key:
             raise ValueError("FMP API key is required.")
         self.api_key = api_key
+        self.cache_dir = cache_dir
+        os.makedirs(self.cache_dir, exist_ok=True)
+
+    def _get_cache_path(self, endpoint: str, params: Dict[str, Any]) -> str:
+        """Creates a unique cache filename based on the endpoint and params."""
+        param_str = '_'.join(f"{k}_{v}" for k, v in sorted(params.items()) if k != 'apikey')
+        filename = f"{endpoint.replace('/', '_')}_{param_str}.json"
+        return os.path.join(self.cache_dir, filename)
 
     async def _fetch_signal(self, session: aiohttp.ClientSession, endpoint: str, params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         """
-        Asynchronously fetches data for a single endpoint.
+        Asynchronously fetches data for a single endpoint, using a cache to avoid repeated requests.
         """
         if params is None:
             params = {}
+        
+        cache_path = self._get_cache_path(endpoint, params)
+        
+        # Check if a recent cache file exists (e.g., < 24 hours old)
+        if os.path.exists(cache_path):
+            if (time.time() - os.path.getmtime(cache_path)) < 86400: # 24 hours
+                logging.debug(f"Loading from cache: {cache_path}")
+                with open(cache_path, 'r') as f:
+                    return json.load(f)
+
         url = f"{self.BASE_URL}/{endpoint}"
         params['apikey'] = self.api_key
         try:
@@ -41,6 +62,11 @@ class FmpPremiumSignals:
                 if not data:
                     logging.warning(f"No data returned from {endpoint} with params {params}")
                     return []
+                
+                # Save to cache
+                with open(cache_path, 'w') as f:
+                    json.dump(data, f)
+                logging.debug(f"Saved to cache: {cache_path}")
                 return data
         except aiohttp.ClientError as e:
             logging.error(f"Error fetching {url}: {e}")

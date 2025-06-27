@@ -8,12 +8,28 @@
 
 ---
 
-## ✅ Foundational Work (Completed)
+## 🎯 Active Tasks
+
+- [@] **Task B Fix: Ensemble Regime Model**
+  - [ ] Refactor regime detectors into separate files.
+  - [ ] Fix logic in `MRSGARCHRegimeDetector`.
+  - [ ] Create `EnsembleRegimeDetector` combining SMA and MRS-GARCH.
+  - [ ] Update `RegimeAwareCVaROptimizer` with more balanced parameters.
+  - [ ] Integrate ensemble model into `run_regime_aware_backtest.py`.
+
+- [@] **Task C Enhancement: Cross-Asset Momentum**
+  - [ ] Create `feature_config.py` with hand-picked features, skipping Boruta.
+  - [ ] Implement `CrossAssetAlphaProcessor` in `signal_processor.py`.
+  - [ ] Integrate new processor and features into `run_alpha_backtest.py`.
+
+## ⏳ Pending & Blocked Tasks
+
+- [!] **Final Reporting** - Assemble `report.pdf` with all findings. (Blocked by Task B & C completion)
+
+## ✅ Completed Tasks
 
 - [x] **Task A: Baseline CVaR Index** - All sub-tasks completed.
-- [x] **Task B: Simple ML Enhancement (SMA Crossover)** - All sub-tasks completed.
-- [x] **Task C: Basic Alpha Integration (Static FMP)** - All sub-tasks completed.
-- [x] **Initial Documentation & Reporting** - All sub-tasks completed.
+- [x] **Initial Implementations** - Foundational versions of Task B (SMA, MRS-GARCH) and Task C (FMP) are complete and serve as baselines for these enhancements.
 
 ---
 
@@ -21,28 +37,28 @@
 
 ### Day 1: Fix & Enhance Alpha Strategy (Task C)
 
-- [ ] **Enhance Signal Processor (`src/alpha/signal_processor.py`)**
-  - [ ] Implement `DynamicSignalProcessor` with signal decay logic.
-  - [ ] Implement `generate_cross_asset_alpha` based on Pitkäjärvi et al. (2020).
-- [ ] **Implement Boruta Feature Selection (`src/alpha/feature_selector.py`)**
-  - [ ] Create new file `feature_selector.py`.
-  - [ ] Implement `FinancialFeatureSelector` class based on Kursa & Rudnicki (2010).
-- [ ] **Update Alpha Backtest (`src/run_alpha_backtest.py`)**
-  - [ ] Integrate dynamic signal generation into the rebalancing loop.
-  - [ ] Combine cross-asset alpha with FMP signals.
-- [ ] **Unit & Integration Testing**
-  - [ ] Test `DynamicSignalProcessor` independently.
-  - [ ] Test `FinancialFeatureSelector` independently.
-  - [ ] Run a partial backtest to ensure integration works.
+- [x] **Enhance Signal Processor (`src/alpha/signal_processor.py`)**
+  - [x] Implement `DynamicSignalProcessor` with signal decay logic.
+  - [x] Implement `generate_cross_asset_alpha` based on Pitkäjärvi et al. (2020).
+- [x] **Implement Boruta Feature Selection (`src/alpha/feature_selector.py`)**
+  - [x] Create new file `feature_selector.py`.
+  - [x] Implement `FinancialFeatureSelector` class based on Kursa & Rudnicki (2010).
+- [x] **Update Alpha Backtest (`src/run_alpha_backtest.py`)**
+  - [x] Integrate dynamic signal generation into the rebalancing loop.
+  - [x] Combine cross-asset alpha with FMP signals.
+- [x] **Unit & Integration Testing**
+  - [x] Test `DynamicSignalProcessor` independently.
+  - [x] Test `FinancialFeatureSelector` independently.
+  - [x] Run a partial backtest to ensure integration works.
 
 ### Day 2: Sophisticated Regime Detection & Dynamic Optimization (Task B)
 
-- [ ] **Implement MRS-GARCH Regime Model (`src/ml/regime_detector.py`)**
-  - [ ] Replace existing `RegimeDetector` with `MRSGARCHRegimeDetector` based on Peng et al. (2022).
-  - [ ] Implement HMM logic with volatility, skewness, and kurtosis features.
-- [ ] **(Optional) Create Ensemble Regime Detector (`src/ml/ensemble_regime.py`)**
-  - [ ] Create new file `ensemble_regime.py`.
-  - [ ] Combine MRS-GARCH with other signals (SMA, Volatility) for a robust score.
+- [x] **Implement MRS-GARCH Regime Model (`src/ml/regime_detector.py`)**
+  - [x] Replace existing `RegimeDetector` with `MRSGARCHRegimeDetector` based on Peng et al. (2022).
+  - [x] Implement HMM logic with volatility, skewness, and kurtosis features.
+- [x] **(Optional) Create Ensemble Regime Detector (`src/ml/ensemble_regime.py`)**
+  - [x] Create new file `ensemble_regime.py`.
+  - [x] Combine MRS-GARCH with other signals (SMA, Volatility) for a robust score.
 - [ ] **Upgrade CVaR Optimizer (`src/optimization/cvar_optimizer.py`)**
   - [ ] Modify `RegimeAwareCVaROptimizer` to accept a continuous regime score.
   - [ ] Implement dynamic, continuous adjustment of `alpha`, `lasso_penalty`, and `max_weight` based on Pesenti et al. (2023).

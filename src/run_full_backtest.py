@@ -166,9 +166,8 @@ async def main():
         logging.info("Successfully saved metrics.")
 
         # Save daily returns
-        returns_path = results_path / "daily_returns.csv"
+        returns_path = results_path / "baseline_daily_returns.csv"
         logging.info(f"Attempting to save daily returns to {returns_path}...")
-        # Align benchmark returns to portfolio returns index before saving
         aligned_benchmark = benchmark_returns.reindex(portfolio_returns.index).ffill()
         all_returns = pd.DataFrame({
             'Baseline_CVaR': portfolio_returns,

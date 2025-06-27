@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import empyrical as ep
 from typing import Callable, Tuple
+import os
+import logging
 
 def bootstrap_metric(
     returns: pd.Series, 
@@ -50,8 +52,15 @@ def calculate_raw_metrics(
 
     metrics = pd.Series(name="Performance Metrics", dtype=np.float64)
 
-    metrics['Cumulative Returns'] = ep.cum_returns_final(portfolio_returns)
-    metrics['Annual Return'] = ep.annual_return(portfolio_returns)
+    total_return = (1 + portfolio_returns).prod() - 1
+    metrics['Cumulative Returns'] = total_return
+    
+    n_years = len(portfolio_returns) / 252.0
+    if n_years == 0:
+        metrics['Annual Return'] = 0
+    else:
+        metrics['Annual Return'] = (1 + total_return) ** (1 / n_years) - 1
+        
     metrics['Annual Volatility'] = ep.annual_volatility(portfolio_returns)
     metrics['Sharpe Ratio'] = ep.sharpe_ratio(portfolio_returns, risk_free=risk_free_rate)
     metrics['Max Drawdown'] = ep.max_drawdown(portfolio_returns)
@@ -76,12 +85,10 @@ def format_metrics_for_display(
     """Formats raw metrics for console display, adding confidence intervals."""
     display_metrics = raw_metrics.copy().astype(object)
 
-    # Confidence Intervals for key metrics
     alpha = 1 - confidence_level
     ar_lower, ar_upper = bootstrap_metric(portfolio_returns, ep.annual_return, alpha=alpha)
     sr_lower, sr_upper = bootstrap_metric(portfolio_returns, ep.sharpe_ratio, alpha=alpha, risk_free=risk_free_rate)
 
-    # Format for better readability
     display_metrics['Cumulative Returns'] = f"{raw_metrics['Cumulative Returns']:.2%}"
     display_metrics['Annual Return'] = f"{raw_metrics['Annual Return']:.2%} ({ar_lower:.2%} - {ar_upper:.2%})"
     display_metrics['Annual Volatility'] = f"{raw_metrics['Annual Volatility']:.2%}"
@@ -96,3 +103,24 @@ def format_metrics_for_display(
     display_metrics['Kurtosis'] = f"{raw_metrics['Kurtosis']:.2f}"
 
     return display_metrics
+
+def update_consolidated_returns(
+    new_returns: pd.Series,
+    strategy_name: str,
+    output_path: str
+):
+    """
+    Loads a consolidated daily returns CSV, adds or updates a strategy's returns,
+    and saves it back.
+    """
+    try:
+        if os.path.exists(output_path):
+            consolidated_returns = pd.read_csv(output_path, index_col='date', parse_dates=True)
+        else:
+            consolidated_returns = pd.DataFrame()
+
+        consolidated_returns[strategy_name] = new_returns
+        consolidated_returns.to_csv(output_path)
+        logging.info(f"Successfully updated consolidated returns file: {output_path}")
+    except Exception as e:
+        logging.error(f"Failed to update consolidated returns file: {e}")

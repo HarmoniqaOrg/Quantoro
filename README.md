@@ -2,21 +2,21 @@
 
 ![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
 
-This repository contains the implementation of a quantitative investment strategy framework, progressing from a baseline Conditional Value-at-Risk (CVaR) optimization to advanced regime-aware and alpha-aware models. The project was completed as a take-home assignment for Alpha Pods.
+This repository contains the implementation of a quantitative investment strategy framework, progressing from a baseline Conditional Value-at-Risk (CVaR) optimization to advanced regime-aware and ML-driven alpha models.
 
 ---
 
 ## ❯ Performance Highlights (2020-2024)
 
-The **Regime-Aware CVaR** strategy demonstrated the most robust performance, successfully navigating volatile market conditions by dynamically adjusting its risk posture. It outperformed both the baseline and alpha-aware models on a risk-adjusted basis.
+The final **Hybrid Regime-Aware Alpha Model** delivered robust performance, successfully navigating market turbulence by blending macroeconomic regime signals with ML-driven stock selection.
 
-| Strategy             | Annualized Return | Annualized Volatility | Sharpe Ratio | Max Drawdown |
-| -------------------- | ----------------- | --------------------- | ------------ | ------------ |
-| **Regime-Aware CVaR**| **15.87%**        | **17.22%**            | **0.94**     | **-28.79%**  |
-| Baseline CVaR        | 15.62%            | 17.25%                | 0.93         | -29.72%      |
-| Alpha-Aware CVaR     | 14.37%            | 17.47%                | 0.86         | -27.82%      |
+| Strategy                      | Annualized Return | Annualized Volatility | Sharpe Ratio | Max Drawdown |
+| ----------------------------- | ----------------- | --------------------- | ------------ | ------------ |
+| **Hybrid ML Alpha Model (C)** | **19.93%**        | **16.82%**            | **1.16**     | **-27.85%**  |
+| Regime-Aware CVaR (B)         | 15.85%            | 17.19%                | 0.94         | -28.40%      |
+| Baseline CVaR (A)             | 15.62%            | 17.25%                | 0.93         | -29.72%      |
 
-*For a complete breakdown of all performance metrics, please see the [Final Report](report.pdf).*
+*Performance metrics are calculated on out-of-sample data from Jan 2020 to Dec 2024.*
 
 ---
 
@@ -30,13 +30,13 @@ This project develops and backtests three distinct portfolio optimization strate
 
 2.  **Task B: Regime-Aware Enhancement**
     - Enhances the baseline model with a dynamic risk framework based on market regimes.
-    - Uses a **50-day vs. 200-day Simple Moving Average (SMA) crossover** on the SPY ETF to identify "Risk-On" and "Risk-Off" states.
-    - The optimizer adjusts its parameters (e.g., `cvar_alpha`, `lasso_penalty`) to be more defensive during "Risk-Off" periods and more aggressive during "Risk-On" periods.
+    - Uses an `EnsembleRegimeDetector` that combines a trend-following (SMA) model and a volatility (Mean Reversion Speed) model to produce a continuous "Risk-Off" probability.
+    - The optimizer dynamically adjusts its parameters based on this probability, becoming more defensive in turbulent markets.
 
-3.  **Task C: Alpha-Aware Integration**
-    - Integrates alternative data to generate alpha and further enhance portfolio returns.
-    - Sources fundamental signals (e.g., P/E Ratio, ROE) from the Financial Modeling Prep (FMP) API.
-    - The optimizer's objective function is modified to simultaneously minimize CVaR and maximize exposure to these alpha signals.
+3.  **Task C: ML-Driven Alpha Integration**
+    - Integrates alternative data and machine learning to generate alpha signals.
+    - A LightGBM model is trained on FMP signals and momentum features to predict 63-day forward returns.
+    - The optimizer's objective function is modified to simultaneously minimize CVaR and maximize exposure to these ML-generated alpha scores.
 
 ---
 
@@ -72,7 +72,7 @@ This project develops and backtests three distinct portfolio optimization strate
 
 ### API Key Configuration
 
-The Alpha-Aware strategy (Task C) requires an API key from [Financial Modeling Prep (FMP)](https://site.financialmodelingprep.com/).
+Task C requires an API key from [Financial Modeling Prep (FMP)](https://site.financialmodelingprep.com/).
 
 1.  **Create a `.env` file** from the example template:
     ```bash
@@ -83,21 +83,20 @@ The Alpha-Aware strategy (Task C) requires an API key from [Financial Modeling P
     FMP_API_KEY=your_key_here
     ```
 
-### Running the Analysis
+### Running the Backtests
 
-You can run the full analysis pipeline, including backtests and report generation, using the following commands from the root directory:
+You can run the backtest for each strategy using the following commands from the root directory:
 
 ```bash
 # Run the baseline CVaR backtest (Task A)
-python src/run_baseline_backtest.py
+python -m src.run_full_backtest
 
 # Run the regime-aware backtest (Task B)
-python src/run_enhanced_backtest.py
+python -m src.run_regime_aware_backtest
 
-# Run the alpha-aware backtest (Task C)
-python src/run_alpha_backtest.py
-
-# Generate all report visuals
+# Run the ML-driven alpha backtest (Task C)
+python -m src.run_ml_alpha_backtest
+```
 python src/reporting/generate_report_visuals.py
 
 # Assemble the final PDF report

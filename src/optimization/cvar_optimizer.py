@@ -36,20 +36,20 @@ class CVaROptimizer:
     def __init__(
         self,
         alpha: float = 0.95,
-        lasso_penalty: float = 1.5,  # Default as per CLEIR paper  # Lowered for sensible default
+        lasso_penalty: float = 1.5,
         max_weight: float = 0.05,
         transaction_cost: float = 0.001,
-        solver: str = 'SCS'
+        solver: str = 'ECOS'
     ):
         """
         Initialize CVaR optimizer.
 
         Args:
             alpha: Confidence level for CVaR (default 0.95)
-            lasso_penalty: LASSO penalty parameter (default 0.01)
+            lasso_penalty: LASSO penalty parameter (default 1.5)
             max_weight: Maximum weight per stock (default 0.05)
             transaction_cost: Transaction cost per trade (default 0.001)
-            solver: CVXPY solver to use (default 'ECOS')
+            solver: CVXPY solver to use (default 'ECOS'). 'SCS' is a good alternative.
         """
         self.alpha = alpha
         self.lasso_penalty = lasso_penalty
@@ -131,13 +131,13 @@ class CVaROptimizer:
 
             if problem.status not in ["optimal", "optimal_inaccurate"]:
                 logger.warning(f"Optimization status: {problem.status}. Returning empty result.")
-                return _get_empty_result(status=problem.status)
+                return self._get_empty_result(status=problem.status)
 
             optimal_weights = w.value
             if optimal_weights is None:
                 logger.error(f"Opt status is {problem.status}, but weights are None. Returning empty.")
-                return _get_empty_result(status=f"{problem.status}_no_weights")
-
+                return self._get_empty_result(status=f"{problem.status}_no_weights")
+                
             portfolio_ret_series = R @ optimal_weights
             tracking_err_series = portfolio_ret_series - b.flatten()
             turnover_val = np.sum(np.abs(optimal_weights - current_weights)) if current_weights is not None else 0.0
@@ -430,23 +430,46 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
     """
     A CVaR optimizer that incorporates an alpha signal into the objective function.
     """
-    def __init__(self, alpha: float = 0.95, lasso_penalty: float = 0.01, max_weight: float = 0.05, solver: str = 'SCS', alpha_factor: float = 0.01, transaction_cost: float = 0.001):
+    def __init__(self, alpha_factor: float = 0.01, **kwargs):
         """
         Initializes the AlphaAwareCVaROptimizer.
 
         Args:
             alpha_factor (float): The weight to give the alpha signal in the objective function.
                                   A higher value means more emphasis on maximizing alpha.
+            **kwargs: Arguments to pass to the base CVaROptimizer.
         """
-        super().__init__(alpha, lasso_penalty, max_weight, transaction_cost, solver)
+        super().__init__(**kwargs)
         self.alpha_factor = alpha_factor
+
+    def set_params(self, alpha: Optional[float] = None, lasso_penalty: Optional[float] = None, max_weight: Optional[float] = None, alpha_factor: Optional[float] = None):
+        """
+        Dynamically update optimizer parameters.
+
+        Args:
+            alpha (Optional[float]): New confidence level for CVaR.
+            lasso_penalty (Optional[float]): New LASSO penalty.
+            max_weight (Optional[float]): New maximum weight per asset.
+            alpha_factor (Optional[float]): New weight for the alpha signal.
+        """
+        if alpha is not None:
+            self.alpha = alpha
+        if lasso_penalty is not None:
+            self.lasso_penalty = lasso_penalty
+        if max_weight is not None:
+            self.max_weight = max_weight
+        if alpha_factor is not None:
+            self.alpha_factor = alpha_factor
+        
+        logger.info(f"Optimizer params updated: alpha={self.alpha}, lasso={self.lasso_penalty}, max_w={self.max_weight}, alpha_f={self.alpha_factor}")
 
     def optimize(
         self,
         returns: pd.DataFrame,
         alpha_scores: pd.Series,
         benchmark_returns: Optional[pd.Series] = None,
-        current_weights: Optional[np.ndarray] = None
+        current_weights: Optional[np.ndarray] = None,
+        regime_prob: Optional[float] = None  # Add for compatibility with engine
     ) -> OptimizationResult:
         """
         Optimize portfolio to minimize CVaR and maximize alpha.
@@ -454,29 +477,41 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
         n_assets = returns.shape[1]
         n_scenarios = returns.shape[0]
 
-        if benchmark_returns is None:
-            benchmark_returns = returns.mean(axis=1)
-
         R = returns.values
-        b = benchmark_returns.values.reshape(-1, 1)
-        aligned_alpha = alpha_scores.reindex(returns.columns).fillna(0).values
+        
+        # Ensure all inputs are explicit 2D column vectors to avoid shape ambiguity
+        aligned_alpha = alpha_scores.reindex(returns.columns).fillna(0).values.reshape(-1, 1)
 
-        w = cp.Variable(n_assets)
-        z = cp.Variable(n_scenarios)
+        if benchmark_returns is None:
+            b = returns.mean(axis=1).values.reshape(-1, 1)
+        elif hasattr(benchmark_returns, 'values'):
+            b = benchmark_returns.values.reshape(-1, 1)
+        else:
+            b = np.asarray(benchmark_returns).reshape(-1, 1)
+        
+        # Define CVXPY variables as explicit 2D column vectors
+        w = cp.Variable((n_assets, 1))
+        z = cp.Variable((n_scenarios, 1))
         zeta = cp.Variable()
 
-        tracking_error = (R @ w) - b.flatten()
+        tracking_error = cp.matmul(R, w) - b
         cvar = zeta + (1.0 / ((1 - self.alpha) * n_scenarios)) * cp.sum(z)
-        portfolio_alpha = w @ aligned_alpha
+        
+        # Use transpose for dot product with column vectors and sum the resulting (1,1) matrix to ensure it's a scalar expression
+        portfolio_alpha = cp.sum(cp.matmul(w.T, aligned_alpha)) 
 
-        objective_terms = [cvar, -self.alpha_factor * portfolio_alpha]
+        # Construct the objective function additively to create a simpler expression tree for the solver
+        objective = cvar - self.alpha_factor * portfolio_alpha
         if self.lasso_penalty > 0:
-            objective_terms.append(self.lasso_penalty * cp.norm1(w))
+            objective += self.lasso_penalty * cp.norm1(w)
         if current_weights is not None:
-            turnover = cp.sum(cp.abs(w - current_weights))
-            objective_terms.append(self.transaction_cost * turnover)
+            current_weights_col = current_weights.reshape(-1, 1)
+            turnover = cp.sum(cp.abs(w - current_weights_col))
+            objective += self.transaction_cost * turnover
 
-        objective = cp.Minimize(cp.sum(objective_terms))
+        objective = cp.Minimize(objective)
+
+        # Use the simpler, more robust constraint formulation from the base class
         constraints = [
             z >= 0,
             z >= -tracking_error - zeta,
@@ -488,24 +523,131 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
         problem = cp.Problem(objective, constraints)
         problem.solve(solver=self.solver, verbose=False)
 
-        if problem.status not in ["optimal", "optimal_inaccurate"]:
+        if problem.status not in ["optimal", "optimal_inaccurate"] or w.value is None:
+            logger.warning(f"Optimization failed or weights are None. Status: {problem.status}")
             return OptimizationResult(
                 weights=np.full(n_assets, np.nan), status=problem.status, cvar=np.nan,
                 portfolio_return=np.nan, portfolio_volatility=np.nan, tracking_error=np.nan, turnover=np.nan, solve_time=0.0
             )
 
-        optimal_weights = w.value
+        optimal_weights = w.value.flatten() # Flatten for consistency in output
         portfolio_ret_series = R @ optimal_weights
         tracking_err_series = portfolio_ret_series - b.flatten()
-        turnover_val = np.sum(np.abs(optimal_weights - current_weights)) if current_weights is not None else 0.0
+
+        if current_weights is not None:
+            turnover_val = np.sum(np.abs(optimal_weights - current_weights))
+        else:
+            turnover_val = 0.0
+            
+        solve_time = problem.solver_stats.solve_time if hasattr(problem, 'solver_stats') and hasattr(problem.solver_stats, 'solve_time') else 0.0
 
         return OptimizationResult(
             weights=optimal_weights,
+            status=problem.status,
             cvar=cvar.value,
             portfolio_return=np.mean(portfolio_ret_series),
             portfolio_volatility=np.std(portfolio_ret_series),
             tracking_error=np.std(tracking_err_series),
             turnover=turnover_val,
-            status=problem.status,
-            solve_time=problem.solver_stats.solve_time or 0.0,
+            solve_time=solve_time
         )
+
+
+class RegimeAwareCVaROptimizer(CVaROptimizer):
+    """Extends the CVaR optimizer to dynamically adjust parameters based on market regime."""
+
+    def __init__(
+        self,
+        alpha: float = 0.95,
+        lasso_penalty: float = 0.01,
+        max_weight: float = 0.05,
+        risk_on_params: Optional[Dict[str, float]] = None,
+        risk_off_params: Optional[Dict[str, float]] = None,
+        **kwargs
+    ):
+        """
+        Initializes the RegimeAwareCVaROptimizer.
+
+        Args:
+            risk_on_params (Dict[str, float]): Parameters for 'risk-on' state.
+            risk_off_params (Dict[str, float]): Parameters for 'risk-off' state.
+            **kwargs: Base arguments for CVaROptimizer.
+        """
+        super().__init__(
+            alpha=alpha,
+            lasso_penalty=lasso_penalty,
+            max_weight=max_weight,
+            **kwargs
+        )
+        # Define default 'risk-on' params based on the base initializer
+        self.risk_on_params = risk_on_params if risk_on_params is not None else {
+            'alpha': alpha,
+            'lasso_penalty': lasso_penalty,
+            'max_weight': max_weight
+        }
+        # Define more defensive 'risk-off' params
+        self.risk_off_params = risk_off_params if risk_off_params is not None else {
+            'alpha': 0.99, 'lasso_penalty': 0.05, 'max_weight': 0.03
+        }
+        
+        logger.info(f"RegimeAwareOptimizer initialized. Risk-On: {self.risk_on_params}, Risk-Off: {self.risk_off_params}")
+
+    def _interpolate_params(self, regime_prob: float) -> Dict[str, float]:
+        """Interpolates optimizer parameters based on the regime probability."""
+        # regime_prob = 0 -> fully risk-on
+        # regime_prob = 1 -> fully risk-off
+        interpolated = {}
+        for param in self.risk_on_params:
+            on_val = self.risk_on_params[param]
+            off_val = self.risk_off_params[param]
+            # Linear interpolation: start + (end - start) * t
+            interp_val = on_val + (off_val - on_val) * regime_prob
+            interpolated[param] = interp_val
+        return interpolated
+
+    def optimize(
+        self,
+        returns: pd.DataFrame,
+        benchmark_returns: Optional[pd.Series] = None,
+        current_weights: Optional[np.ndarray] = None,
+        regime_prob: Optional[float] = None,
+        alpha_scores: Optional[pd.Series] = None # For compatibility
+    ) -> OptimizationResult:
+        """
+        Optimize with dynamic parameters based on continuous regime score.
+        """
+        # Store original parameters to restore after optimization
+        original_params = {
+            'alpha': self.alpha,
+            'lasso_penalty': self.lasso_penalty,
+            'max_weight': self.max_weight
+        }
+
+        if regime_prob is not None:
+            # Interpolate parameters based on the continuous regime probability
+            interpolated_params = self._interpolate_params(regime_prob)
+            
+            logger.info(
+                f"Regime-adjusted params (prob={regime_prob:.2f}): "
+                f"α={interpolated_params['alpha']:.3f}, "
+                f"λ={interpolated_params['lasso_penalty']:.4f}, "
+                f"max_w={interpolated_params['max_weight']:.3f}"
+            )
+            
+            # Apply the interpolated parameters for this optimization run
+            self.alpha = interpolated_params['alpha']
+            self.lasso_penalty = interpolated_params['lasso_penalty']
+            self.max_weight = interpolated_params['max_weight']
+        
+        try:
+            # Call the base class's optimize method with the dynamically adjusted parameters
+            return super().optimize(
+                returns=returns,
+                benchmark_returns=benchmark_returns,
+                current_weights=current_weights
+            )
+        finally:
+            # Restore original parameters to ensure statelessness for the next run
+            self.alpha = original_params['alpha']
+            self.lasso_penalty = original_params['lasso_penalty']
+            self.max_weight = original_params['max_weight']
