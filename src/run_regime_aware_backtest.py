@@ -82,7 +82,8 @@ def main():
     optimizer = RegimeAwareCVaROptimizer(
         risk_on_params=RISK_ON_PARAMS,
         risk_off_params=RISK_OFF_PARAMS,
-        transaction_cost=0.001
+        transaction_cost=0.001,
+        solver='SCS'  # Explicitly set the solver to avoid ECOS error
     )
 
     logging.info("Running rolling backtest with dynamic regime parameters...")

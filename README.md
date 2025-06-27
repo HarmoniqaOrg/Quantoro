@@ -13,7 +13,7 @@ The final **Hybrid Regime-Aware Alpha Model** delivered robust performance, succ
 | Strategy                      | Annualized Return | Annualized Volatility | Sharpe Ratio | Max Drawdown |
 | ----------------------------- | ----------------- | --------------------- | ------------ | ------------ |
 | **Hybrid ML Alpha Model (C)** | **19.93%**        | **16.82%**            | **1.16**     | **-27.85%**  |
-| Regime-Aware CVaR (B)         | 15.85%            | 17.19%                | 0.94         | -28.40%      |
+| Regime-Aware CVaR (B)         | 16.30%            | 17.11%                | 0.97         | -28.04%      |
 | Baseline CVaR (A)             | 15.62%            | 17.25%                | 0.93         | -29.72%      |
 
 *Performance metrics are calculated on out-of-sample data from Jan 2020 to Dec 2024.*
@@ -85,21 +85,37 @@ Task C requires an API key from [Financial Modeling Prep (FMP)](https://site.fin
 
 ### Running the Backtests
 
-You can run the backtest for each strategy using the following commands from the root directory:
+The easiest way to run the backtests is by using the provided `Makefile`.
+
+1.  **Run all backtests sequentially:**
+    ```bash
+    make run-all
+    ```
+
+2.  **Run individual backtests:**
+    ```bash
+    # Run Task A: Baseline CVaR
+    make run-baseline
+
+    # Run Task B: Regime-Aware CVaR
+    make run-regime
+
+    # Run Task C: Hybrid ML Alpha Model
+    make run-hybrid
+    ```
+
+Alternatively, you can run the scripts directly:
+```bash
+python src/run_full_backtest.py
+python src/run_regime_aware_backtest.py
+python src/run_hybrid_model_backtest.py
+```
+
+### Generating the Final Report
+
+After running the backtests, you can generate the final PDF report, which includes performance analysis and visualizations:
 
 ```bash
-# Run the baseline CVaR backtest (Task A)
-python -m src.run_full_backtest
-
-# Run the regime-aware backtest (Task B)
-python -m src.run_regime_aware_backtest
-
-# Run the ML-driven alpha backtest (Task C)
-python -m src.run_ml_alpha_backtest
-```
-python src/reporting/generate_report_visuals.py
-
-# Assemble the final PDF report
 python src/reporting/generate_final_report.py
 ```
 
@@ -109,18 +125,25 @@ python src/reporting/generate_final_report.py
 
 ```
 quantoro/
-├── data/               # Data storage and caching
-├── docs/               # Project documentation
+├── docs/               # Project documentation (PRD, tasks, method summaries)
 ├── results/            # Backtest outputs, metrics, and plots
 ├── src/                # Source code
-│   ├── alpha/          # Alpha signal generation
-│   ├── backtesting/    # Backtesting engine and metrics
+│   ├── alpha/          # Alpha signal generation (FMP signals)
+│   ├── backtesting/    # Backtesting engine and performance metrics
 │   ├── data/           # Data loading and processing
-│   ├── ml/             # Regime detection model (SMA Crossover)
-│   ├── optimization/   # CVaR optimizers
-│   └── reporting/      # Report and visualization generation
-├── .env.example        # Example environment file
+│   ├── optimization/   # CVaR optimizer implementations
+│   ├── regime/         # Regime detection models
+│   ├── reporting/      # Report and visualization generation
+│   ├── utils/          # Utility functions
+│   ├── config.py       # Configuration settings
+│   ├── run_full_backtest.py
+│   ├── run_regime_aware_backtest.py
+│   └── run_hybrid_model_backtest.py
+├── tests/              # Unit and integration tests
+├── .env.example        # Example environment file for API keys
+├── Makefile            # Makefile for easy execution of tasks
 ├── README.md           # This file
+├── report.md           # Source for the final report
 ├── report.pdf          # Final consolidated PDF report
 └── requirements.txt    # Project dependencies
 ```

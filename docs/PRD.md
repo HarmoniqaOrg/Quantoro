@@ -1,34 +1,5 @@
 # Product Requirements Document - Quantoro
 
-## 🚀 Strategic Pivot & Enhancement Plan (Effective 2025-06-27)
-
-**Status: In Enhancement Phase**
-
-### 1. Rationale for Pivot
-
-Following a comprehensive review of the completed baseline project, a strategic decision was made to elevate the implementation from a standard academic exercise to a competition-grade quantitative strategy. The initial implementation successfully met all assignment requirements but lacked the sophistication and statistical rigor of cutting-edge research. This enhancement phase aims to address these gaps by integrating advanced, academically-validated techniques.
-
-### 2. Refined Enhancement Strategy
-
-Based on empirical results and model performance, the enhancement strategy has been refined to prioritize robustness and proven alpha sources:
-
-1.  **Ensemble Regime Detection (Task B Fix)**: The standalone MRS-GARCH model demonstrated flawed logic. It will be replaced by a robust ensemble model combining the strengths of two diverse approaches:
-    *   **Simple Moving Average (SMA) Crossover**: The original, highly interpretable, and proven baseline model will provide the primary trend signal (70% weight).
-    *   **Corrected MRS-GARCH Model**: The MRS-GARCH detector's logic will be fixed to correctly identify high-volatility regimes. It will serve as a secondary, more nuanced signal based on market microstructure (30% weight).
-    *   **Academic Grounding**: This ensemble approach is grounded in research showing that combining diverse, weakly correlated models yields more robust results than a single complex model (*Timmermann, 2006, "Forecast Combinations"*).
-
-2.  **Advanced Alpha Strategy (Task C Enhancement)**: To boost alpha generation, we will enhance the existing FMP signal processor with a new, academically-backed signal:
-    *   **Cross-Asset Momentum**: Implementing signals based on the findings of *Pitkäjärvi et al. (2020), "Cross-asset signals and time series momentum"*. This strategy leverages the predictive power of bond market returns (proxied by SPY) on future equity performance.
-    *   **Hand-Picked Feature Selection**: The automated Boruta feature selection process proved ineffective (selecting zero features). We are pivoting to a domain-knowledge-based approach, creating a curated list of high-signal features (e.g., `AAPL_insider_trades`, `NVDA_analyst_recs`) in a dedicated `feature_config.py`. This pragmatic approach prioritizes signal quality over automated complexity.
-
-3.  **Balanced Optimizer Parameters**: Based on backtest results, the `RegimeAwareCVaROptimizer`'s parameters will be adjusted to a more balanced and practical range (e.g., CVaR alpha from 0.93 to 0.97), avoiding the extreme risk-on/off postures that can lead to instability.
-
-### 3. Expected Outcomes
-
-This strategic pivot is expected to deliver significant improvements across all key metrics, targeting a Sharpe Ratio > 1.10 and an Information Ratio > 0.40, backed by statistically significant p-values.
-
----
-
 ## Project Overview
 Implementation of CVaR-LASSO Enhanced Index Replication (CLEIR) with ML enhancements for eToro Alpha Pods assignment.
 
@@ -66,6 +37,6 @@ Implementation of CVaR-LASSO Enhanced Index Replication (CLEIR) with ML enhancem
 
 ## 7. Final Project Status
 
-**Status: In Enhancement Phase**
+**Status: Complete & Ready for Submission**
 
-All tasks outlined in the assignment have been successfully implemented, backtested, and documented. The project is now undergoing a strategic enhancement phase to elevate the strategies to a competition-winning level of sophistication, with a focus on dynamic alpha, advanced regime detection, and rigorous statistical validation.
+All tasks outlined in the assignment—Baseline CVaR (A), Regime-Aware Enhancement (B), and Hybrid ML Alpha (C)—have been successfully implemented, debugged, and backtested. All solver-related issues have been resolved. The project documentation has been updated to reflect the final results, and a functional `Makefile` has been created for easy reproducibility. The project is now complete and ready for final report generation and submission.

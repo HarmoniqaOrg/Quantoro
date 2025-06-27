@@ -89,7 +89,8 @@ async def main():
         alpha=CVAR_ALPHA,
         lasso_penalty=1.5,  # As per CLEIR paper - promotes sparsity
         transaction_cost=TRANSACTION_COST,
-        max_weight=MAX_WEIGHT
+        max_weight=MAX_WEIGHT,
+        solver='SCS'  # Explicitly set the solver to avoid ECOS error
     )
     rolling_optimizer = RollingCVaROptimizer(
         optimizer=cvar_optimizer,
