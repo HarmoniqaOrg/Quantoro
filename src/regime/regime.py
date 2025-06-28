@@ -27,12 +27,14 @@ class MRSGARCHRegimeDetector:
         Calculates rolling features (volatility, skewness, kurtosis) from a price series.
         """
         log_returns = np.log(prices / prices.shift(1))
-        
+
         features = pd.DataFrame(index=prices.index)
-        features['volatility'] = log_returns.rolling(window=self.lookback_window).std() * np.sqrt(252)
-        features['skewness'] = log_returns.rolling(window=self.lookback_window).skew()
-        features['kurtosis'] = log_returns.rolling(window=self.lookback_window).kurt()
-        
+        features["volatility"] = log_returns.rolling(window=self.lookback_window).std() * np.sqrt(
+            252
+        )
+        features["skewness"] = log_returns.rolling(window=self.lookback_window).skew()
+        features["kurtosis"] = log_returns.rolling(window=self.lookback_window).kurt()
+
         return features.dropna()
 
     def detect_regime(self, prices: pd.Series) -> pd.Series:
@@ -57,10 +59,10 @@ class MRSGARCHRegimeDetector:
 
         # Get the posterior probabilities for each state
         posterior_probs = self.model.predict_proba(features)
-        
+
         # Extract the probability of being in the high-volatility regime
         regime_probabilities = pd.Series(posterior_probs[:, high_vol_regime], index=features.index)
-        
+
         # Reindex to match original price series, forward-filling initial NaNs
         return regime_probabilities.reindex(prices.index).ffill().fillna(0).rename("regime_prob")
 
@@ -95,8 +97,8 @@ class SMARegimeDetector:
         """
         short_ma = prices.rolling(window=self.short_window).mean()
         long_ma = prices.rolling(window=self.long_window).mean()
-        
+
         # A 'risk-on' regime is when the short-term trend is above the long-term trend
         regime = (short_ma > long_ma).astype(int)
-        
+
         return regime.rename("regime_prob").ffill().fillna(0)

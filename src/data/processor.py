@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from typing import Optional
 
+
 class DataProcessor:
     """
     A class for processing financial time series data.
@@ -10,7 +11,9 @@ class DataProcessor:
     def __init__(self):
         pass
 
-    def calculate_returns(self, prices: pd.DataFrame, log_returns: bool = True) -> Optional[pd.DataFrame]:
+    def calculate_returns(
+        self, prices: pd.DataFrame, log_returns: bool = True
+    ) -> Optional[pd.DataFrame]:
         """
         Calculates returns from a DataFrame of prices.
 
@@ -47,24 +50,24 @@ class DataProcessor:
         """
         df_cleaned = df.ffill()
         # Drop rows where all tickers have NaN values, which can happen on holidays
-        df_cleaned = df_cleaned.dropna(how='all')
+        df_cleaned = df_cleaned.dropna(how="all")
         return df_cleaned
 
 
 # Example usage:
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Create a sample price DataFrame
-    dates = pd.to_datetime(pd.date_range(start='2023-01-01', periods=10))
+    dates = pd.to_datetime(pd.date_range(start="2023-01-01", periods=10))
     prices_data = {
-        'AAPL': [150, 152, 151, 153, 155, 154, 156, 157, 158, 160],
-        'MSFT': [300, 301, 303, np.nan, 305, 306, 304, 307, 309, 308]
+        "AAPL": [150, 152, 151, 153, 155, 154, 156, 157, 158, 160],
+        "MSFT": [300, 301, 303, np.nan, 305, 306, 304, 307, 309, 308],
     }
     prices = pd.DataFrame(prices_data, index=dates)
     print("Original Prices:")
     print(prices)
-    
+
     processor = DataProcessor()
-    
+
     # Clean data
     cleaned_prices = processor.clean_data(prices)
     print("\nCleaned Prices (forward-filled):")
@@ -74,7 +77,7 @@ if __name__ == '__main__':
     log_returns = processor.calculate_returns(cleaned_prices, log_returns=True)
     print("\nLog Returns:")
     print(log_returns.head())
-    
+
     # Calculate simple returns
     simple_returns = processor.calculate_returns(cleaned_prices, log_returns=False)
     print("\nSimple Returns:")

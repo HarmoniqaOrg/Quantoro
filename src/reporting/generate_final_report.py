@@ -3,28 +3,19 @@
 import pandas as pd
 from markdown_pdf import MarkdownPdf, Section
 import os
+from .utils import read_file_content, format_metrics_table
 
 # --- Configuration ---
-RESULTS_DIR = 'results'
-DOCS_DIR = 'docs'
-IMG_DIR = os.path.join(RESULTS_DIR, 'img')
-METRICS_FILE = os.path.join(RESULTS_DIR, 'consolidated_performance_metrics.csv')
-TASK_B_SUMMARY_FILE = os.path.join(DOCS_DIR, 'task_b_method_summary.md')
-TASK_B_REPORT_FILE = os.path.join(DOCS_DIR, 'task_b_interpretability_report.md')
-PERFORMANCE_PLOT = os.path.join(IMG_DIR, 'performance_comparison.png')
-REGIME_PLOT = os.path.join(IMG_DIR, 'regime_analysis_plot.png')
-OUTPUT_PDF = 'report.pdf'
+RESULTS_DIR = "results"
+DOCS_DIR = "docs"
 
-# --- Helper Functions ---
-def read_file_content(file_path):
-    """Reads the content of a file."""
-    with open(file_path, 'r', encoding='utf-8') as f:
-        return f.read()
+METRICS_FILE = os.path.join(RESULTS_DIR, "consolidated_performance_metrics.csv")
+TASK_B_SUMMARY_FILE = os.path.join(DOCS_DIR, "task_b_method_summary.md")
+TASK_B_REPORT_FILE = os.path.join(DOCS_DIR, "task_b_interpretability_report.md")
+PERFORMANCE_PLOT = os.path.join(RESULTS_DIR, "baseline_performance_comparison.png")
+REGIME_PLOT = os.path.join(RESULTS_DIR, "regime_interpretability.png")
+OUTPUT_PDF = "report.pdf"
 
-def format_metrics_table(file_path):
-    """Reads a CSV and formats it as a Markdown table."""
-    df = pd.read_csv(file_path, index_col=0)
-    return df.to_markdown()
 
 # --- Report Content Assembly ---
 print("Assembling final report...")
@@ -75,20 +66,22 @@ Key learnings include the importance of robust data pipelines, the challenges of
 print(f"Generating PDF report: {OUTPUT_PDF}...")
 
 # Assemble all markdown content
-full_markdown = "\n\n".join([
-    report_title,
-    author_line,
-    intro_text,
-    results_header,
-    metrics_table,
-    performance_plot_md,
-    task_a_summary,
-    task_b_summary,
-    regime_analysis_header,
-    regime_plot_md,
-    task_c_summary,
-    reflections
-])
+full_markdown = "\n\n".join(
+    [
+        report_title,
+        author_line,
+        intro_text,
+        results_header,
+        metrics_table,
+        performance_plot_md,
+        task_a_summary,
+        task_b_summary,
+        regime_analysis_header,
+        regime_plot_md,
+        task_c_summary,
+        reflections,
+    ]
+)
 
 pdf = MarkdownPdf(toc_level=2)
 pdf.add_section(Section(full_markdown, toc=False))

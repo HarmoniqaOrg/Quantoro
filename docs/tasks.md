@@ -10,10 +10,10 @@
 
 ## 🎯 Active Tasks
 
-- [@] **Final Reporting**
+- [x] **Final Cleanup & Submission**
   - [x] Assemble final `report.pdf` with all findings, methodologies, and visualizations.
-  - [ ] Final code review and cleanup.
-  - [ ] Push final changes for submission.
+  - [x] Final code review and cleanup.
+  - [x] Push final changes for submission.
 
 ## ✅ Completed Tasks
 
@@ -35,3 +35,7 @@
   - [x] Completed method summary and interpretability report.
 - [x] **Fix Solver Issues**
   - [x] Updated all backtest scripts to use the 'SCS' solver, resolving runtime errors.
+- [x] **Debug Core Backtest Engine & Benchmarks**
+  - [x] Resolved persistent `KeyError: 'date'` in `RollingCVaROptimizer`.
+  - [x] Refactored `backtest` method for robustness and clarity.
+  - [x] Implemented rigorous quarterly-rebalanced equal-weighted benchmark with correct turnover calculation.

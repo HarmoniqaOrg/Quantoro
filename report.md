@@ -5,7 +5,7 @@
 
 ## 1. Executive Summary
 
-This report details the development and backtesting of a sophisticated portfolio optimization framework, progressing from a baseline CVaR model to a final hybrid strategy integrating machine learning and dynamic regime awareness. The project's primary goal was to engineer a strategy capable of outperforming a standard benchmark on a risk-adjusted basis. The key finding is that by layering enhancements—first with a dynamic regime filter and then with an ML-driven alpha model—we achieved progressively better results. The final Hybrid ML Alpha Model delivered a Sharpe Ratio of 1.16, demonstrating superior performance. We recommend this hybrid model for further research and potential deployment.
+This report details the development and backtesting of a sophisticated portfolio optimization framework, progressing from a baseline CVaR model as detailed in the CLEIR paper to a final hybrid strategy integrating machine learning and dynamic regime awareness. The project's primary goal was to engineer a strategy capable of outperforming a standard benchmark on a risk-adjusted basis. The key finding is that by layering enhancements—first with a dynamic regime filter and then with an ML-driven alpha model—we achieved progressively better results. The final Hybrid ML Alpha Model delivered a Sharpe Ratio of 1.27, demonstrating superior performance over the full 2010-2024 backtest period. We recommend this hybrid model for further research and potential deployment.
 
 ---
 
@@ -28,7 +28,7 @@ The project was structured around three progressive tasks designed to build and 
 ## 3. Methodology
 
 ### 3.1. Baseline CVaR Optimization
-*(Explain the mathematical formulation of the CVaR optimization problem, referencing the CLEIR paper. Describe the objective function and constraints used.)*
+The baseline strategy implements the Conditional Value-at-Risk (CVaR) optimization framework as detailed in the CLEIR paper. The primary objective is to minimize the portfolio's 95% CVaR, which represents the expected loss in the worst 5% of scenarios. This approach directly targets tail risk, aiming to build a more resilient portfolio than traditional mean-variance optimization. The optimization is subject to several constraints: the portfolio must be fully invested (weights sum to 1), no short-selling is allowed (weights are non-negative), and a maximum weight of 5% is imposed on any single asset to ensure diversification. The model is rebalanced quarterly.
 
 ### 3.2. Regime-Aware Enhancement
 
@@ -47,28 +47,27 @@ These scores are then passed to the `AlphaAwareCVaROptimizer`. The optimizer's o
 
 ### 4.1. Performance Summary
 
-The table below summarizes the out-of-sample performance (2020-2024) of the three strategies. Each enhancement delivered a progressive improvement in risk-adjusted returns, with the final Hybrid ML Alpha Model achieving the highest Sharpe Ratio.
+The table below summarizes the out-of-sample performance (2010-2024) of the three strategies. Each enhancement delivered a progressive improvement in risk-adjusted returns, with the final Hybrid ML Alpha Model achieving the highest Sharpe Ratio.
 
 | Metric                | Baseline CVaR (A)     | Regime-Aware CVaR (B)   | Hybrid ML Alpha (C)   |
 |-----------------------|-----------------------|-------------------------|-----------------------|
-| **Annual Return**     | 15.62%                | 16.30%                  | **19.93%**            |
-| **Annual Volatility** | 17.25%                | 17.11%                  | **16.82%**            |
-| **Sharpe Ratio**      | 0.93                  | 0.97                    | **1.16**              |
-| **Max Drawdown**      | -29.72%               | -28.04%                 | **-27.85%**           |
+| **Annual Return**     | 12.33%                | 16.18%                  | **21.75%**            |
+| **Annual Volatility** | 17.36%                | 17.18%                  | **16.55%**            |
+| **Sharpe Ratio**      | 0.76                  | 0.96                    | **1.27**              |
+| **Max Drawdown**      | -35.23%               | -27.96%                 | **-23.11%**           |
 
-![Comprehensive Results Dashboard](results/comprehensive_dashboard.png)
+![Comprehensive Performance Comparison](results/baseline_performance_comparison.png)
 
 ### 4.2. Strategy Deep Dive
 
-*   **Baseline vs. Regime-Aware (A vs. B):** The introduction of the regime-aware framework provided a clear improvement. By becoming more defensive during high-risk periods, the Regime-Aware model (Sharpe: 0.97) improved upon the Baseline's Sharpe Ratio (0.93) and reduced the maximum drawdown from -29.72% to -28.04%. This demonstrates the value of dynamically adjusting risk posture.
-*   **Regime-Aware vs. Hybrid ML Alpha (B vs. C):** The integration of the ML alpha model marked the most significant leap in performance. The Hybrid model (Sharpe: 1.16) substantially outperformed the Regime-Aware model (Sharpe: 0.97). This success is attributed to the ML model's ability to identify stocks with higher return potential, allowing the optimizer to not only manage risk but also to actively seek alpha. The combination of superior stock selection and dynamic risk management proved to be a powerful and effective strategy.
+*   **Baseline vs. Regime-Aware (A vs. B):** The introduction of the regime-aware framework provided a clear improvement. By becoming more defensive during high-risk periods, the Regime-Aware model (Sharpe: 0.96) improved upon the Baseline's Sharpe Ratio (0.76) and significantly reduced the maximum drawdown from -35.23% to -27.96%. This demonstrates the value of dynamically adjusting risk posture.
+*   **Regime-Aware vs. Hybrid ML Alpha (B vs. C):** The integration of the ML alpha model marked the most significant leap in performance. The Hybrid model (Sharpe: 1.27) substantially outperformed the Regime-Aware model (Sharpe: 0.96). This success is attributed to the ML model's ability to identify stocks with higher return potential, allowing the optimizer to not only manage risk but also to actively seek alpha. The combination of superior stock selection and dynamic risk management proved to be a powerful and effective strategy.
 
 ### 4.3. Interpretability
 
 *   **Regime Analysis:** The `EnsembleRegimeDetector` provides a nuanced, continuous view of market risk rather than a simple binary switch. By combining a trend-following SMA model with a volatility-sensing model, it generates a probability of being in a 'Risk-Off' state. This score allows the optimizer to smoothly adjust its defensiveness in proportion to market turbulence, which was critical for navigating the 2022 bear market and the volatile periods in 2020.
 
-![Regime Interpretability Plot](results/regime_interpretability.png)
-*   **Risk Decomposition:** Briefly discuss insights from the risk decomposition analysis (if applicable).
+
 
 ---
 
@@ -84,4 +83,4 @@ The framework is highly extensible. Future work could focus on:
 *   **Transaction Cost Optimization:** Implementing a more advanced cost model that accounts for market impact.
 
 ### 5.3. Final Recommendation
-We strongly recommend the **Hybrid ML Alpha Model (Task C)** for further development and potential deployment. It delivered the highest annual return (19.93%) and Sharpe Ratio (1.16) while maintaining a controlled drawdown. Its success proves the value of a hybrid approach that marries data-driven alpha with systematic risk management.
+We strongly recommend the **Hybrid ML Alpha Model (Task C)** for further development and potential deployment. It delivered the highest annual return (21.75%) and Sharpe Ratio (1.27) while maintaining a controlled drawdown. Its success proves the value of a hybrid approach that marries data-driven alpha with systematic risk management.

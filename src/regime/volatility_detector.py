@@ -3,11 +3,13 @@ Implements a simple, robust regime detector based on a volatility threshold.
 """
 import pandas as pd
 
+
 class VolatilityThresholdDetector:
     """
     Detects market regimes based on a simple volatility threshold.
     This provides a robust, non-hanging alternative to complex models like HMM.
     """
+
     def __init__(self, window: int = 21, quantile: float = 0.75):
         """
         Initializes the detector.
@@ -32,8 +34,8 @@ class VolatilityThresholdDetector:
         """
         volatility = returns.rolling(self.window).std().dropna()
         threshold = volatility.quantile(self.quantile)
-        
+
         # Risk-off (0) if volatility is above the threshold, risk-on (1) otherwise
         risk_scores = (volatility <= threshold).astype(float)
-        
+
         return risk_scores

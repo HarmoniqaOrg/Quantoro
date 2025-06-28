@@ -14,6 +14,7 @@ from src.optimization.cvar_optimizer import CVaROptimizer, OptimizationResult
 
 logger = logging.getLogger(__name__)
 
+
 class BacktestEngine:
     """
     Orchestrates a rolling-window backtest.
@@ -25,9 +26,9 @@ class BacktestEngine:
         optimizer: CVaROptimizer,
         start_date: str,
         end_date: str,
-        rebalance_frequency: str = 'M', # 'M' for monthly, 'Q' for quarterly
+        rebalance_frequency: str = "M",  # 'M' for monthly, 'Q' for quarterly
         lookback_window: int = 252,
-        transaction_cost_bps: float = 5.0 # 5 basis points
+        transaction_cost_bps: float = 5.0,  # 5 basis points
     ):
         """
         Initializes the backtesting engine.
@@ -55,17 +56,22 @@ class BacktestEngine:
 
     def _validate_inputs(self):
         """Validates that the date range is within the available data."""
-        if self.start_date < self.returns_data.index.min() or self.end_date > self.returns_data.index.max():
+        if (
+            self.start_date < self.returns_data.index.min()
+            or self.end_date > self.returns_data.index.max()
+        ):
             raise ValueError("Backtest date range is outside the available data range.")
 
     def _get_rebalance_dates(self) -> pd.DatetimeIndex:
         """Calculates the rebalancing dates based on the specified frequency."""
-        all_dates = self.returns_data.loc[self.start_date:self.end_date].index
+        all_dates = self.returns_data.loc[self.start_date : self.end_date].index
         # Generate potential rebalance dates and then select only those that exist in our data
-        potential_dates = pd.date_range(start=self.start_date, end=self.end_date, freq=f"{self.rebalance_frequency}S")
+        potential_dates = pd.date_range(
+            start=self.start_date, end=self.end_date, freq=f"{self.rebalance_frequency}S"
+        )
         # Use get_indexer to find the positions of our desired rebalance dates
         # 'bfill' will find the next valid business day if the desired date is a weekend/holiday
-        indexer = all_dates.get_indexer(potential_dates, method='bfill')
+        indexer = all_dates.get_indexer(potential_dates, method="bfill")
         # Filter out any invalid (-1) indices and return the actual dates
         return all_dates[indexer[indexer != -1]]
 
@@ -74,12 +80,18 @@ class BacktestEngine:
         Generator that yields the data for each rebalancing period.
         """
         for rebalance_date in self.rebalance_dates:
-            window_start_index = self.returns_data.index.searchsorted(rebalance_date) - self.lookback_window
+            window_start_index = (
+                self.returns_data.index.searchsorted(rebalance_date) - self.lookback_window
+            )
             if window_start_index < 0:
-                logger.warning(f"Not enough data for lookback window on {rebalance_date}. Skipping.")
+                logger.warning(
+                    f"Not enough data for lookback window on {rebalance_date}. Skipping."
+                )
                 continue
-            
-            returns_window = self.returns_data.iloc[window_start_index:self.returns_data.index.searchsorted(rebalance_date)]
+
+            returns_window = self.returns_data.iloc[
+                window_start_index : self.returns_data.index.searchsorted(rebalance_date)
+            ]
             yield rebalance_date, returns_window
 
     def rebalance(
@@ -87,7 +99,7 @@ class BacktestEngine:
         rebalance_date: pd.Timestamp,
         returns_window: pd.DataFrame,
         alpha_scores: Optional[pd.Series] = None,
-        regime_prob: Optional[float] = None
+        regime_prob: Optional[float] = None,
     ) -> Optional[OptimizationResult]:
         """
         Executes one rebalancing step: optimize and update weights.
@@ -102,7 +114,7 @@ class BacktestEngine:
             Optional[OptimizationResult]: The result from the optimizer, or None if failed.
         """
         logger.debug(f"Rebalancing on {rebalance_date.date()}...")
-        
+
         # Align alpha scores with the universe of the returns window
         if alpha_scores is not None:
             alpha_scores = alpha_scores.reindex(returns_window.columns).fillna(0)
@@ -112,18 +124,22 @@ class BacktestEngine:
                 returns=returns_window,
                 current_weights=self.current_weights,
                 alpha_scores=alpha_scores,
-                regime_prob=regime_prob
+                regime_prob=regime_prob,
             )
 
-            if result and result.status in ['optimal', 'optimal_inaccurate']:
+            if result and result.status in ["optimal", "optimal_inaccurate"]:
                 self.current_weights = result.weights
             else:
-                logger.warning(f"Optimization failed or returned no solution on {rebalance_date.date()}. Weights not updated.")
+                logger.warning(
+                    f"Optimization failed or returned no solution on {rebalance_date.date()}. Weights not updated."
+                )
                 # Keep previous weights if optimization fails
                 return None
-            
+
             return result
 
         except Exception as e:
-            logger.error(f"Exception during optimization on {rebalance_date.date()}: {e}", exc_info=True)
+            logger.error(
+                f"Exception during optimization on {rebalance_date.date()}: {e}", exc_info=True
+            )
             return None

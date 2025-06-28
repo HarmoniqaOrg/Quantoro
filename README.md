@@ -12,11 +12,11 @@ The final **Hybrid Regime-Aware Alpha Model** delivered robust performance, succ
 
 | Strategy                      | Annualized Return | Annualized Volatility | Sharpe Ratio | Max Drawdown |
 | ----------------------------- | ----------------- | --------------------- | ------------ | ------------ |
-| **Hybrid ML Alpha Model (C)** | **19.93%**        | **16.82%**            | **1.16**     | **-27.85%**  |
-| Regime-Aware CVaR (B)         | 16.30%            | 17.11%                | 0.97         | -28.04%      |
-| Baseline CVaR (A)             | 15.62%            | 17.25%                | 0.93         | -29.72%      |
+| **Hybrid ML Alpha Model (C)** | **21.75%**        | **16.55%**            | **1.27**     | **-23.11%**  |
+| Regime-Aware CVaR (B)         | 16.18%            | 17.18%                | 0.96         | -27.96%      |
+| Baseline CVaR (A)             | 12.33%            | 17.36%                | 0.76         | -35.23%      |
 
-*Performance metrics are calculated on out-of-sample data from Jan 2020 to Dec 2024.*
+*Performance metrics are calculated on out-of-sample data from Jan 2010 to Dec 2024.*
 
 ---
 

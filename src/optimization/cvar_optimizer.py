@@ -3,19 +3,19 @@ CVaR Portfolio Optimizer
 Implements the CLEIR methodology for Task A
 """
 
+import logging
 import numpy as np
 import pandas as pd
 import cvxpy as cp
 from typing import Tuple, Optional, Dict, List
 from dataclasses import dataclass
-import logging
 
 logger = logging.getLogger(__name__)
-
 
 @dataclass
 class OptimizationResult:
     """Container for optimization results."""
+
     weights: np.ndarray
     cvar: float
     portfolio_return: float
@@ -29,17 +29,17 @@ class OptimizationResult:
 class CVaROptimizer:
     """
     Conditional Value-at-Risk (CVaR) portfolio optimizer with LASSO constraints.
-    
+
     Implements the CLEIR methodology from Gendreau et al. (2019).
     """
-    
+
     def __init__(
         self,
         alpha: float = 0.95,
         lasso_penalty: float = 1.5,
         max_weight: float = 0.05,
         transaction_cost: float = 0.001,
-        solver: str = 'ECOS'
+        solver: str = "ECOS",
     ):
         """
         Initialize CVaR optimizer.
@@ -62,11 +62,24 @@ class CVaROptimizer:
             f"lasso_penalty={lasso_penalty}, max_weight={max_weight}"
         )
 
+    def _get_empty_result(self, n_assets: int, status: str = "failed") -> OptimizationResult:
+        """Returns an empty OptimizationResult for failed optimizations."""
+        return OptimizationResult(
+            weights=np.full(n_assets, np.nan),
+            cvar=np.nan,
+            portfolio_return=np.nan,
+            portfolio_volatility=np.nan,
+            tracking_error=np.nan,
+            turnover=np.nan,
+            status=status,
+            solve_time=0.0,
+        )
+
     def optimize(
         self,
         returns: pd.DataFrame,
         benchmark_returns: Optional[pd.Series] = None,
-        current_weights: Optional[np.ndarray] = None
+        current_weights: Optional[np.ndarray] = None,
     ) -> OptimizationResult:
         """
         Optimize portfolio to minimize CVaR of tracking error.
@@ -79,20 +92,12 @@ class CVaROptimizer:
         Returns:
             OptimizationResult containing optimal weights and metrics
         """
-        n_assets = returns.shape[1]
+        # Fill NaNs to prevent numerical errors in the solver
+        returns = returns.fillna(0.0)
+        if benchmark_returns is not None:
+            benchmark_returns = benchmark_returns.fillna(0.0)
 
-        def _get_empty_result(status: str = "failed") -> OptimizationResult:
-            """Returns an empty OptimizationResult for failed optimizations."""
-            return OptimizationResult(
-                weights=np.full(n_assets, np.nan),
-                cvar=np.nan,
-                portfolio_return=np.nan,
-                portfolio_volatility=np.nan,
-                tracking_error=np.nan,
-                turnover=np.nan,
-                status=status,
-                solve_time=0.0
-            )
+        n_assets = returns.shape[1]
 
         try:
             n_scenarios = returns.shape[0]
@@ -127,20 +132,49 @@ class CVaROptimizer:
 
             objective = cp.Minimize(cp.sum(objective_terms))
             problem = cp.Problem(objective, constraints)
-            problem.solve(solver=self.solver, verbose=False)
+
+            # Try the default solver first, then fall back to SCS for robustness
+            solvers = [self.solver]
+            if self.solver != "SCS":
+                solvers.append("SCS")
+
+            for solver in solvers:
+                try:
+                    solver_kwargs = {"solver": solver, "verbose": False}
+                    # Use more robust settings specifically for the SCS fallback solver
+                    if solver == "SCS":
+                        solver_kwargs.update(
+                            {
+                                "max_iters": 5000,
+                                "eps": 1e-4,
+                            }
+                        )
+                    problem.solve(**solver_kwargs)
+                    if problem.status in ["optimal", "optimal_inaccurate"] and w.value is not None:
+                        logger.info(f"Successfully solved with {solver}.")
+                        break  # Exit loop on success
+                except (cp.SolverError, ValueError) as e:
+                    logger.warning(f"Solver {solver} failed with error: {e}. Trying next solver.")
+                    continue
 
             if problem.status not in ["optimal", "optimal_inaccurate"]:
                 logger.warning(f"Optimization status: {problem.status}. Returning empty result.")
-                return self._get_empty_result(status=problem.status)
+                return self._get_empty_result(n_assets, status=problem.status)
 
             optimal_weights = w.value
             if optimal_weights is None:
-                logger.error(f"Opt status is {problem.status}, but weights are None. Returning empty.")
-                return self._get_empty_result(status=f"{problem.status}_no_weights")
-                
+                logger.error(
+                    f"Opt status is {problem.status}, but weights are None. Returning empty."
+                )
+                return self._get_empty_result(n_assets, status=f"{problem.status}_no_weights")
+
             portfolio_ret_series = R @ optimal_weights
             tracking_err_series = portfolio_ret_series - b.flatten()
-            turnover_val = np.sum(np.abs(optimal_weights - current_weights)) if current_weights is not None else 0.0
+            turnover_val = (
+                np.sum(np.abs(optimal_weights - current_weights))
+                if current_weights is not None
+                else 0.0
+            )
 
             result = OptimizationResult(
                 weights=optimal_weights,
@@ -158,60 +192,67 @@ class CVaROptimizer:
 
         except Exception as e:
             logger.error(f"Optimization failed: {str(e)}")
-            return _get_empty_result(status="exception")
-    
+            return self._get_empty_result(n_assets, status="exception")
+
     def calculate_portfolio_metrics(
         self,
         returns: pd.DataFrame,
         weights: np.ndarray,
-        benchmark_returns: Optional[pd.Series] = None
+        benchmark_returns: Optional[pd.Series] = None,
     ) -> Dict[str, float]:
         """
         Calculate comprehensive portfolio metrics.
-        
+
         Args:
             returns: DataFrame of asset returns
             weights: Portfolio weights
             benchmark_returns: Benchmark returns for comparison
-            
+
         Returns:
             Dictionary of portfolio metrics
         """
         # Portfolio returns
         portfolio_returns = returns @ weights
-        
+
         # Basic metrics
         metrics = {
-            'annual_return': portfolio_returns.mean() * 252,
-            'annual_volatility': portfolio_returns.std() * np.sqrt(252),
-            'sharpe_ratio': (portfolio_returns.mean() * 252) / (portfolio_returns.std() * np.sqrt(252)),
-            'max_drawdown': self._calculate_max_drawdown(portfolio_returns),
-            'calmar_ratio': (portfolio_returns.mean() * 252) / abs(self._calculate_max_drawdown(portfolio_returns)),
-            'sortino_ratio': self._calculate_sortino_ratio(portfolio_returns),
-            'cvar_95': self._calculate_cvar(portfolio_returns, 0.95),
-            'cvar_99': self._calculate_cvar(portfolio_returns, 0.99),
+            "annual_return": portfolio_returns.mean() * 252,
+            "annual_volatility": portfolio_returns.std() * np.sqrt(252),
+            "sharpe_ratio": (portfolio_returns.mean() * 252)
+            / (portfolio_returns.std() * np.sqrt(252)),
+            "max_drawdown": self._calculate_max_drawdown(portfolio_returns),
+            "calmar_ratio": (portfolio_returns.mean() * 252)
+            / abs(self._calculate_max_drawdown(portfolio_returns)),
+            "sortino_ratio": self._calculate_sortino_ratio(portfolio_returns),
+            "cvar_95": self._calculate_cvar(portfolio_returns, 0.95),
+            "cvar_99": self._calculate_cvar(portfolio_returns, 0.99),
         }
-        
+
         # Tracking error metrics if benchmark provided
         if benchmark_returns is not None:
             tracking_error = portfolio_returns - benchmark_returns
-            metrics.update({
-                'tracking_error': tracking_error.std() * np.sqrt(252),
-                'information_ratio': (tracking_error.mean() * 252) / (tracking_error.std() * np.sqrt(252)),
-                'beta': portfolio_returns.cov(benchmark_returns) / benchmark_returns.var(),
-                'correlation': portfolio_returns.corr(benchmark_returns)
-            })
-        
+            metrics.update(
+                {
+                    "tracking_error": tracking_error.std() * np.sqrt(252),
+                    "information_ratio": (tracking_error.mean() * 252)
+                    / (tracking_error.std() * np.sqrt(252)),
+                    "beta": portfolio_returns.cov(benchmark_returns) / benchmark_returns.var(),
+                    "correlation": portfolio_returns.corr(benchmark_returns),
+                }
+            )
+
         # Weight concentration metrics
-        metrics.update({
-            'effective_n': 1 / np.sum(weights ** 2),
-            'max_weight': np.max(weights),
-            'n_positions': np.sum(weights > 0.001),
-            'concentration_top5': np.sum(np.sort(weights)[-5:])
-        })
-        
+        metrics.update(
+            {
+                "effective_n": 1 / np.sum(weights**2),
+                "max_weight": np.max(weights),
+                "n_positions": np.sum(weights > 0.001),
+                "concentration_top5": np.sum(np.sort(weights)[-5:]),
+            }
+        )
+
         return metrics
-    
+
     @staticmethod
     def _calculate_max_drawdown(returns: pd.Series) -> float:
         """Calculate maximum drawdown from returns series."""
@@ -219,15 +260,17 @@ class CVaROptimizer:
         running_max = cum_returns.expanding().max()
         drawdowns = (cum_returns - running_max) / running_max
         return drawdowns.min()
-    
+
     @staticmethod
     def _calculate_sortino_ratio(returns: pd.Series, mar: float = 0.0) -> float:
         """Calculate Sortino ratio."""
         excess_returns = returns - mar
         downside_returns = excess_returns[excess_returns < 0]
-        downside_std = np.sqrt(np.mean(downside_returns ** 2))
-        return (returns.mean() * 252) / (downside_std * np.sqrt(252)) if downside_std > 0 else np.inf
-    
+        downside_std = np.sqrt(np.mean(downside_returns**2))
+        return (
+            (returns.mean() * 252) / (downside_std * np.sqrt(252)) if downside_std > 0 else np.inf
+        )
+
     @staticmethod
     def _calculate_cvar(returns: pd.Series, alpha: float) -> float:
         """Calculate Conditional Value at Risk (CVaR)."""
@@ -249,14 +292,14 @@ class CVaROptimizer:
         portfolio_variance = weights.T @ returns.cov().values @ weights
         if portfolio_variance < 1e-9:
             return pd.Series(np.zeros_like(weights), index=returns.columns)
-        
+
         # Marginal Contribution to Risk (MCTR)
         mctr = returns.cov().values @ weights
-        
+
         # Risk Contribution (RC) = weight * MCTR / portfolio_stdev
         portfolio_stdev = np.sqrt(portfolio_variance)
         risk_contribution = weights * mctr / portfolio_stdev
-        
+
         return pd.Series(risk_contribution, index=returns.columns)
 
 
@@ -266,10 +309,7 @@ class RollingCVaROptimizer:
     """
 
     def __init__(
-        self,
-        optimizer: CVaROptimizer,
-        lookback_window: int = 252,
-        rebalance_frequency: str = 'Q'
+        self, optimizer: CVaROptimizer, lookback_window: int = 252, rebalance_frequency: str = "Q"
     ):
         """
         Initialize rolling optimizer.
@@ -283,8 +323,8 @@ class RollingCVaROptimizer:
         self.lookback_window = lookback_window
         self.rebalance_frequency = rebalance_frequency
         self.original_params = {
-            'max_weight': optimizer.max_weight,
-            'lasso_penalty': optimizer.lasso_penalty
+            "max_weight": optimizer.max_weight,
+            "lasso_penalty": optimizer.lasso_penalty,
         }
 
     def backtest(
@@ -294,110 +334,132 @@ class RollingCVaROptimizer:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         alpha_scores: Optional[pd.DataFrame] = None,
-        regimes: Optional[pd.Series] = None
-    ) -> Tuple[pd.DataFrame, pd.Series]:
+        regimes: Optional[pd.Series] = None,
+    ) -> Tuple[pd.DataFrame, pd.Series, pd.DataFrame]:
         """
         Run rolling window backtest.
 
         Args:
-            returns: Full dataset of returns
-            benchmark_returns: Benchmark returns
-            start_date: Backtest start date
-            end_date: Backtest end date
+            returns: Full dataset of returns.
+            benchmark_returns: Benchmark returns.
+            start_date: Backtest start date.
+            end_date: Backtest end date.
+            alpha_scores: DataFrame of alpha scores.
+            regimes: Series of market regimes.
 
         Returns:
             A tuple containing:
-            - DataFrame with backtest rebalance results
-            - Series with daily portfolio returns
+            - DataFrame with backtest rebalance results.
+            - Series with daily portfolio returns.
+            - DataFrame with daily portfolio weights.
         """
-        # Filter date range
+        # 1. Filter date range
         if start_date:
-            returns = returns[returns.index >= start_date]
-            benchmark_returns = benchmark_returns[benchmark_returns.index >= start_date]
+            returns = returns.loc[start_date:]
+            benchmark_returns = benchmark_returns.loc[start_date:]
         if end_date:
-            returns = returns[returns.index <= end_date]
-            benchmark_returns = benchmark_returns[benchmark_returns.index <= end_date]
+            returns = returns.loc[:end_date]
+            benchmark_returns = benchmark_returns.loc[:end_date]
 
         rebalance_dates = self._get_rebalance_dates(returns.index, self.lookback_window)
-        
         if rebalance_dates.empty:
-            logger.error("No valid rebalance dates found for the given data range and lookback window.")
-            return pd.DataFrame(), pd.Series(dtype=float)
+            logger.error("No valid rebalance dates found.")
+            return pd.DataFrame(), pd.Series(dtype=float), pd.DataFrame()
 
+        # 2. Main backtest loop
         rebalance_results = []
-        daily_weights_df = pd.DataFrame(index=returns.index, columns=returns.columns)
+        # Initialize weights for the first period
         current_weights = np.ones(returns.shape[1]) / returns.shape[1]
 
         for date in rebalance_dates:
             lookback_end_loc = returns.index.get_loc(date)
             lookback_start_loc = max(0, lookback_end_loc - self.lookback_window)
-            
-            hist_returns = returns.iloc[lookback_start_loc:lookback_end_loc]
-            hist_benchmark = benchmark_returns.iloc[lookback_start_loc:lookback_end_loc]
+            lookback_returns = returns.iloc[lookback_start_loc:lookback_end_loc]
+            lookback_benchmark = benchmark_returns.iloc[lookback_start_loc:lookback_end_loc]
 
-            # Adjust optimizer parameters based on regime if provided
-            if regimes is not None:
-                current_regime = regimes.asof(date)
-                if current_regime == 0:  # Risk-off
-                    logger.info(f"Risk-off regime on {date}. Using defensive parameters.")
-                    self.optimizer.max_weight = 0.03  # More defensive
-                    self.optimizer.lasso_penalty = self.original_params['lasso_penalty'] * 1.5 # Higher penalty
-                else:  # Risk-on or no regime
-                    logger.info(f"Risk-on regime on {date}. Using standard parameters.")
-                    self.optimizer.max_weight = self.original_params['max_weight']
-                    self.optimizer.lasso_penalty = self.original_params['lasso_penalty']
+            # Ensure current_weights match the current asset universe size
+            if len(current_weights) != lookback_returns.shape[1]:
+                current_weights = np.ones(lookback_returns.shape[1]) / lookback_returns.shape[1]
 
-            # Check if the optimizer is alpha-aware and if we have scores
-            if isinstance(self.optimizer, AlphaAwareCVaROptimizer) and alpha_scores is not None:
-                # Get the latest alpha scores available up to the rebalance date
-                latest_alpha_scores = alpha_scores.asof(date)
-                if isinstance(latest_alpha_scores, pd.DataFrame): # Handle non-unique index from asof
-                    latest_alpha_scores = latest_alpha_scores.iloc[-1]
+            # --- Parameter Adjustment (for compatible optimizers) ---
+            optimizer_kwargs = {
+                "returns": lookback_returns,
+                "benchmark_returns": lookback_benchmark,
+                "current_weights": current_weights,
+            }
+            if regimes is not None and hasattr(self.optimizer, "_interpolate_params"): 
+                regime_prob = regimes.asof(date)
+                optimizer_kwargs["regime_prob"] = regime_prob
+
+            if alpha_scores is not None and isinstance(self.optimizer, (AlphaAwareCVaROptimizer, RegimeAwareCVaROptimizer)):
+                latest_alpha = alpha_scores.asof(date)
+                if isinstance(latest_alpha, pd.DataFrame):
+                    latest_alpha = latest_alpha.iloc[-1]
                 
-                if latest_alpha_scores.isnull().all():
-                    logger.warning(f"No alpha scores found for {date}. Alpha term will be zero.")
-                else:
-                    logger.info(f"Using alpha scores for optimization on {date}.")
-                
-                opt_result = self.optimizer.optimize(
-                    returns=hist_returns, 
-                    alpha_scores=latest_alpha_scores, 
-                    benchmark_returns=hist_benchmark, 
-                    current_weights=current_weights
-                )
-            else:
-                opt_result = self.optimizer.optimize(hist_returns, hist_benchmark, current_weights)
+                aligned_alpha, _ = latest_alpha.align(pd.Series(index=lookback_returns.columns), join='right', fill_value=0)
+                optimizer_kwargs["alpha_scores"] = aligned_alpha
 
-            if opt_result.status in ["optimal", "optimal_inaccurate"] and opt_result.weights is not None:
+            # --- Run Optimization ---
+            opt_result = self.optimizer.optimize(**optimizer_kwargs)
+
+            # --- Store Results ---
+            if opt_result and opt_result.status in ["optimal", "optimal_inaccurate"]:
                 current_weights = opt_result.weights
+                result_dict = {
+                    "date": date,
+                    "universe": lookback_returns.columns.tolist(),
+                    "weights": opt_result.weights,
+                    "cvar": opt_result.cvar,
+                    "tracking_error": opt_result.tracking_error,
+                    "turnover": opt_result.turnover,
+                    "n_positions": (opt_result.weights > 1e-4).sum(),
+                    "status": opt_result.status,
+                }
+                logger.info(f"Rebalanced on {date}: CVaR={opt_result.cvar:.4f}, Status={opt_result.status}")
             else:
-                logger.warning(f"Optimization failed on {date} with status {opt_result.status}. Holding previous weights.")
-            
-            daily_weights_df.loc[date] = current_weights
-            
-            rebalance_results.append({
-                'weights': current_weights,
-                'cvar': opt_result.cvar,
-                'tracking_error': opt_result.tracking_error,
-                'turnover': opt_result.turnover,
-                'n_positions': np.sum(current_weights > 0.001) if current_weights is not None else 0,
-                'status': opt_result.status
-            })
-            logger.info(f"Rebalanced on {date}: CVaR={opt_result.cvar:.4f}, Status={opt_result.status}")
+                status = opt_result.status if opt_result else "failed"
+                logger.warning(f"Optimization failed on {date} with status {status}. Holding previous weights.")
+                result_dict = {
+                    "date": date,
+                    "universe": lookback_returns.columns.tolist(),
+                    "weights": current_weights,
+                    "cvar": np.nan,
+                    "tracking_error": np.nan,
+                    "turnover": 0,
+                    "n_positions": (current_weights > 1e-4).sum(),
+                    "status": "failed_optimization",
+                }
+            rebalance_results.append(result_dict)
 
-        daily_weights_df.ffill(inplace=True)
-        daily_weights_df.dropna(inplace=True)
+        if not rebalance_results:
+            logger.error("Backtest loop finished but no results were generated.")
+            return pd.DataFrame(), pd.Series(dtype=float), pd.DataFrame()
 
-        if daily_weights_df.empty:
-            logger.error("Backtest produced no weights. Check rebalance dates and data range.")
-            return pd.DataFrame(), pd.Series(dtype=float)
-            
-        aligned_returns = returns.loc[daily_weights_df.index]
-        portfolio_returns = (daily_weights_df * aligned_returns).sum(axis=1)
+        # 3. Process Results
+        rebalance_df = pd.DataFrame(rebalance_results)
+        rebalance_df["date"] = pd.to_datetime(rebalance_df["date"])
+        rebalance_df.set_index("date", inplace=True)
 
-        results_df = pd.DataFrame(rebalance_results, index=rebalance_dates)
+        # 4. Construct Daily Weights DataFrame
+        all_weights_rows = []
+        for date, row in rebalance_df.iterrows():
+            weights_series = pd.Series(row["weights"], index=row["universe"], name=date)
+            all_weights_rows.append(weights_series)
+        
+        weights_df = pd.concat(all_weights_rows, axis=1).T.fillna(0.0)
+        
+        daily_index = returns.loc[weights_df.index.min():].index
+        daily_weights_df = weights_df.reindex(daily_index, method="ffill").fillna(0.0)
+        
+        # 5. Calculate Portfolio Returns
+        aligned_returns, aligned_weights = returns.align(daily_weights_df, join='inner', axis=0)
+        portfolio_returns = (aligned_weights * aligned_returns).sum(axis=1)
 
-        return results_df, portfolio_returns
+        rebalance_df.reset_index(inplace=True)
+
+        return rebalance_df, portfolio_returns, daily_weights_df
+
+        return results_df, portfolio_returns, daily_weights_df
 
     def _get_rebalance_dates(self, dates: pd.DatetimeIndex, lookback: int) -> pd.DatetimeIndex:
         """Get rebalancing dates, ensuring enough lookback data exists."""
@@ -410,7 +472,7 @@ class RollingCVaROptimizer:
         for date in resampled_dates:
             # Find the location of the last trading day on or before the period end.
             # searchsorted finds the insertion point, so -1 gives the prior date's location.
-            loc = dates.searchsorted(date, side='right')
+            loc = dates.searchsorted(date, side="right")
             if loc == 0:
                 continue
 
@@ -430,6 +492,7 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
     """
     A CVaR optimizer that incorporates an alpha signal into the objective function.
     """
+
     def __init__(self, alpha_factor: float = 0.01, **kwargs):
         """
         Initializes the AlphaAwareCVaROptimizer.
@@ -442,7 +505,13 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
         super().__init__(**kwargs)
         self.alpha_factor = alpha_factor
 
-    def set_params(self, alpha: Optional[float] = None, lasso_penalty: Optional[float] = None, max_weight: Optional[float] = None, alpha_factor: Optional[float] = None):
+    def set_params(
+        self,
+        alpha: Optional[float] = None,
+        lasso_penalty: Optional[float] = None,
+        max_weight: Optional[float] = None,
+        alpha_factor: Optional[float] = None,
+    ):
         """
         Dynamically update optimizer parameters.
 
@@ -460,8 +529,10 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
             self.max_weight = max_weight
         if alpha_factor is not None:
             self.alpha_factor = alpha_factor
-        
-        logger.info(f"Optimizer params updated: alpha={self.alpha}, lasso={self.lasso_penalty}, max_w={self.max_weight}, alpha_f={self.alpha_factor}")
+
+        logger.info(
+            f"Optimizer params updated: alpha={self.alpha}, lasso={self.lasso_penalty}, max_w={self.max_weight}, alpha_f={self.alpha_factor}"
+        )
 
     def optimize(
         self,
@@ -469,7 +540,7 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
         alpha_scores: pd.Series,
         benchmark_returns: Optional[pd.Series] = None,
         current_weights: Optional[np.ndarray] = None,
-        regime_prob: Optional[float] = None  # Add for compatibility with engine
+        regime_prob: Optional[float] = None,  # Add for compatibility with engine
     ) -> OptimizationResult:
         """
         Optimize portfolio to minimize CVaR and maximize alpha.
@@ -478,17 +549,17 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
         n_scenarios = returns.shape[0]
 
         R = returns.values
-        
+
         # Ensure all inputs are explicit 2D column vectors to avoid shape ambiguity
         aligned_alpha = alpha_scores.reindex(returns.columns).fillna(0).values.reshape(-1, 1)
 
         if benchmark_returns is None:
             b = returns.mean(axis=1).values.reshape(-1, 1)
-        elif hasattr(benchmark_returns, 'values'):
+        elif hasattr(benchmark_returns, "values"):
             b = benchmark_returns.values.reshape(-1, 1)
         else:
             b = np.asarray(benchmark_returns).reshape(-1, 1)
-        
+
         # Define CVXPY variables as explicit 2D column vectors
         w = cp.Variable((n_assets, 1))
         z = cp.Variable((n_scenarios, 1))
@@ -496,9 +567,9 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
 
         tracking_error = cp.matmul(R, w) - b
         cvar = zeta + (1.0 / ((1 - self.alpha) * n_scenarios)) * cp.sum(z)
-        
+
         # Use transpose for dot product with column vectors and sum the resulting (1,1) matrix to ensure it's a scalar expression
-        portfolio_alpha = cp.sum(cp.matmul(w.T, aligned_alpha)) 
+        portfolio_alpha = cp.sum(cp.matmul(w.T, aligned_alpha))
 
         # Construct the objective function additively to create a simpler expression tree for the solver
         objective = cvar - self.alpha_factor * portfolio_alpha
@@ -520,17 +591,32 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
             w <= self.max_weight,
         ]
 
-        problem = cp.Problem(objective, constraints)
-        problem.solve(solver=self.solver, verbose=False)
+        # Define and solve the CVXPY problem
+        problem = cp.Problem(cp.Minimize(objective), constraints)
+        # Use more robust solver settings to prevent failures on difficult data
+        solver_kwargs = {
+            "solver": "SCS",
+            "verbose": False,
+            "max_iters": 5000,  # Increased iterations
+            "eps": 1e-4,  # Slightly relaxed tolerance
+            "use_indirect": True,  # Can be more robust for ill-conditioned problems
+        }
+        problem.solve(**solver_kwargs)
 
         if problem.status not in ["optimal", "optimal_inaccurate"] or w.value is None:
             logger.warning(f"Optimization failed or weights are None. Status: {problem.status}")
             return OptimizationResult(
-                weights=np.full(n_assets, np.nan), status=problem.status, cvar=np.nan,
-                portfolio_return=np.nan, portfolio_volatility=np.nan, tracking_error=np.nan, turnover=np.nan, solve_time=0.0
+                weights=np.full(n_assets, np.nan),
+                status=problem.status,
+                cvar=np.nan,
+                portfolio_return=np.nan,
+                portfolio_volatility=np.nan,
+                tracking_error=np.nan,
+                turnover=np.nan,
+                solve_time=0.0,
             )
 
-        optimal_weights = w.value.flatten() # Flatten for consistency in output
+        optimal_weights = w.value.flatten()  # Flatten for consistency in output
         portfolio_ret_series = R @ optimal_weights
         tracking_err_series = portfolio_ret_series - b.flatten()
 
@@ -538,8 +624,12 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
             turnover_val = np.sum(np.abs(optimal_weights - current_weights))
         else:
             turnover_val = 0.0
-            
-        solve_time = problem.solver_stats.solve_time if hasattr(problem, 'solver_stats') and hasattr(problem.solver_stats, 'solve_time') else 0.0
+
+        solve_time = (
+            problem.solver_stats.solve_time
+            if hasattr(problem, "solver_stats") and hasattr(problem.solver_stats, "solve_time")
+            else 0.0
+        )
 
         return OptimizationResult(
             weights=optimal_weights,
@@ -549,7 +639,7 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
             portfolio_volatility=np.std(portfolio_ret_series),
             tracking_error=np.std(tracking_err_series),
             turnover=turnover_val,
-            solve_time=solve_time
+            solve_time=solve_time,
         )
 
 
@@ -561,9 +651,10 @@ class RegimeAwareCVaROptimizer(CVaROptimizer):
         alpha: float = 0.95,
         lasso_penalty: float = 0.01,
         max_weight: float = 0.05,
+        solver: str = "ECOS",
         risk_on_params: Optional[Dict[str, float]] = None,
         risk_off_params: Optional[Dict[str, float]] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Initializes the RegimeAwareCVaROptimizer.
@@ -574,23 +665,24 @@ class RegimeAwareCVaROptimizer(CVaROptimizer):
             **kwargs: Base arguments for CVaROptimizer.
         """
         super().__init__(
-            alpha=alpha,
-            lasso_penalty=lasso_penalty,
-            max_weight=max_weight,
-            **kwargs
+            alpha=alpha, lasso_penalty=lasso_penalty, max_weight=max_weight, solver=solver, **kwargs
         )
         # Define default 'risk-on' params based on the base initializer
-        self.risk_on_params = risk_on_params if risk_on_params is not None else {
-            'alpha': alpha,
-            'lasso_penalty': lasso_penalty,
-            'max_weight': max_weight
-        }
+        self.risk_on_params = (
+            risk_on_params
+            if risk_on_params is not None
+            else {"alpha": alpha, "lasso_penalty": lasso_penalty, "max_weight": max_weight}
+        )
         # Define more defensive 'risk-off' params
-        self.risk_off_params = risk_off_params if risk_off_params is not None else {
-            'alpha': 0.99, 'lasso_penalty': 0.05, 'max_weight': 0.03
-        }
-        
-        logger.info(f"RegimeAwareOptimizer initialized. Risk-On: {self.risk_on_params}, Risk-Off: {self.risk_off_params}")
+        self.risk_off_params = (
+            risk_off_params
+            if risk_off_params is not None
+            else {"alpha": 0.99, "lasso_penalty": 0.05, "max_weight": 0.03}
+        )
+
+        logger.info(
+            f"RegimeAwareOptimizer initialized. Risk-On: {self.risk_on_params}, Risk-Off: {self.risk_off_params}"
+        )
 
     def _interpolate_params(self, regime_prob: float) -> Dict[str, float]:
         """Interpolates optimizer parameters based on the regime probability."""
@@ -611,43 +703,43 @@ class RegimeAwareCVaROptimizer(CVaROptimizer):
         benchmark_returns: Optional[pd.Series] = None,
         current_weights: Optional[np.ndarray] = None,
         regime_prob: Optional[float] = None,
-        alpha_scores: Optional[pd.Series] = None # For compatibility
+        alpha_scores: Optional[pd.Series] = None,  # For compatibility
     ) -> OptimizationResult:
         """
         Optimize with dynamic parameters based on continuous regime score.
         """
         # Store original parameters to restore after optimization
         original_params = {
-            'alpha': self.alpha,
-            'lasso_penalty': self.lasso_penalty,
-            'max_weight': self.max_weight
+            "alpha": self.alpha,
+            "lasso_penalty": self.lasso_penalty,
+            "max_weight": self.max_weight,
         }
 
         if regime_prob is not None:
             # Interpolate parameters based on the continuous regime probability
             interpolated_params = self._interpolate_params(regime_prob)
-            
+
             logger.info(
                 f"Regime-adjusted params (prob={regime_prob:.2f}): "
                 f"α={interpolated_params['alpha']:.3f}, "
                 f"λ={interpolated_params['lasso_penalty']:.4f}, "
                 f"max_w={interpolated_params['max_weight']:.3f}"
             )
-            
+
             # Apply the interpolated parameters for this optimization run
-            self.alpha = interpolated_params['alpha']
-            self.lasso_penalty = interpolated_params['lasso_penalty']
-            self.max_weight = interpolated_params['max_weight']
-        
+            self.alpha = interpolated_params["alpha"]
+            self.lasso_penalty = interpolated_params["lasso_penalty"]
+            self.max_weight = interpolated_params["max_weight"]
+
         try:
             # Call the base class's optimize method with the dynamically adjusted parameters
             return super().optimize(
                 returns=returns,
                 benchmark_returns=benchmark_returns,
-                current_weights=current_weights
+                current_weights=current_weights,
             )
         finally:
             # Restore original parameters to ensure statelessness for the next run
-            self.alpha = original_params['alpha']
-            self.lasso_penalty = original_params['lasso_penalty']
-            self.max_weight = original_params['max_weight']
+            self.alpha = original_params["alpha"]
+            self.lasso_penalty = original_params["lasso_penalty"]
+            self.max_weight = original_params["max_weight"]

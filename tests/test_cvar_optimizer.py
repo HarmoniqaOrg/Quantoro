@@ -21,8 +21,7 @@ def test_optimization_with_simple_data():
     n_days = 252
     n_assets = 25  # Increased to 25 to make the 5% max_weight constraint feasible
     returns = pd.DataFrame(
-        np.random.randn(n_days, n_assets) * 0.01,
-        columns=[f'Asset_{i}' for i in range(n_assets)]
+        np.random.randn(n_days, n_assets) * 0.01, columns=[f"Asset_{i}" for i in range(n_assets)]
     )
 
     # Initialize optimizer with default constraints (max_weight=0.05)
@@ -32,7 +31,10 @@ def test_optimization_with_simple_data():
     result = optimizer.optimize(returns)
 
     # Check results
-    assert result.status in ["optimal", "optimal_inaccurate"], f"Optimization failed with status: {result.status}"
+    assert result.status in [
+        "optimal",
+        "optimal_inaccurate",
+    ], f"Optimization failed with status: {result.status}"
     assert result.weights is not None
     assert not np.isnan(result.weights).any(), "Weights should not be NaN"
     assert len(result.weights) == n_assets
@@ -44,16 +46,15 @@ def test_optimization_with_simple_data():
 def test_portfolio_metrics():
     """Test portfolio metrics calculation."""
     # Create simple returns
-    returns = pd.DataFrame({
-        'Asset1': [0.01, -0.02, 0.03, -0.01, 0.02],
-        'Asset2': [0.02, 0.01, -0.01, 0.02, -0.01]
-    })
+    returns = pd.DataFrame(
+        {"Asset1": [0.01, -0.02, 0.03, -0.01, 0.02], "Asset2": [0.02, 0.01, -0.01, 0.02, -0.01]}
+    )
     weights = np.array([0.6, 0.4])
-    
+
     optimizer = CVaROptimizer()
     metrics = optimizer.calculate_portfolio_metrics(returns, weights)
-    
-    assert 'annual_return' in metrics
-    assert 'annual_volatility' in metrics
-    assert 'sharpe_ratio' in metrics
-    assert 'max_drawdown' in metrics
+
+    assert "annual_return" in metrics
+    assert "annual_volatility" in metrics
+    assert "sharpe_ratio" in metrics
+    assert "max_drawdown" in metrics

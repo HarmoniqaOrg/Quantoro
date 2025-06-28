@@ -1,12 +1,12 @@
 import pandas as pd
 import os
 
-RESULTS_DIR = 'results'
+RESULTS_DIR = "results"
 
 files_to_consolidate = {
-    'Baseline CVaR (A)': os.path.join(RESULTS_DIR, 'baseline_cvar_performance.csv'),
-    'Regime-Aware CVaR (B)': os.path.join(RESULTS_DIR, 'regime_aware_cvar_performance.csv'),
-    'Hybrid ML Alpha (C)': os.path.join(RESULTS_DIR, 'hybrid_model_performance.csv'),
+    "Baseline CVaR (A)": os.path.join(RESULTS_DIR, "baseline_cvar_performance_metrics.csv"),
+    "Regime-Aware CVaR (B)": os.path.join(RESULTS_DIR, "regime_aware_cvar_performance.csv"),
+    "Hybrid ML Alpha (C)": os.path.join(RESULTS_DIR, "hybrid_model_performance.csv"),
 }
 
 consolidated_metrics = {}
@@ -27,7 +27,7 @@ for name, path in files_to_consolidate.items():
 
 if consolidated_metrics:
     final_df = pd.DataFrame(consolidated_metrics)
-    output_path = os.path.join(RESULTS_DIR, 'consolidated_performance_metrics.csv')
+    output_path = os.path.join(RESULTS_DIR, "consolidated_performance_metrics.csv")
     final_df.to_csv(output_path)
     print(f"--- Consolidated metrics saved to {output_path} ---")
 else:
