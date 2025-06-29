@@ -226,7 +226,7 @@ async def main():
 
     # --- Save all results ---
     logging.info("Saving all backtest artifacts...")
-    results_path = Path("../../results")
+    results_path = Path("results")
     results_path.mkdir(exist_ok=True)
 
     full_period_returns.to_csv(results_path / "baseline_daily_returns.csv", header=True)
@@ -289,23 +289,31 @@ async def main():
         # Calculate gross daily returns for the benchmark
         gross_ew_daily_returns = (ew_daily_weights.shift(1) * asset_returns).sum(axis=1)
 
-        # --- Calculate and Apply Transaction Costs from Rebalancing ---
-        weights, returns = ew_daily_weights.align(asset_returns, join="inner", axis=0)
-        weights, returns = weights.fillna(0), returns.fillna(0)
+        # --- Calculate and Apply Transaction Costs from Rebalancing (Quarterly) ---
+        net_ew_daily_returns = gross_ew_daily_returns.copy()
+        logging.info("Applying quarterly transaction costs to Equal-Weighted benchmark...")
 
-        w_prev = weights.shift(1).fillna(0)
-        portfolio_returns_drift = (w_prev * returns).sum(axis=1)
-        drift_denominator = 1 + portfolio_returns_drift
-        drift_denominator[drift_denominator == 0] = 1e-12
-        drift_numerator = w_prev.multiply(1 + returns)
-        w_drifted = drift_numerator.div(drift_denominator, axis=0).fillna(0)
+        for reb_date in rebalance_dates:
+            # Find the day before the rebalance date
+            prev_day_loc = ew_daily_weights.index.get_loc(reb_date) - 1
+            if prev_day_loc < 0:
+                continue
 
-        daily_trades = (weights - w_drifted).abs().sum(axis=1)
-        transaction_cost_rate = TRANSACTION_COST_BPS / 10000
-        daily_costs = daily_trades * transaction_cost_rate
+            prev_day_weights = ew_daily_weights.iloc[prev_day_loc]
+            prev_day_returns = asset_returns.iloc[prev_day_loc]
 
-        net_ew_daily_returns = gross_ew_daily_returns - daily_costs
+            # Calculate drifted weights
+            drifted_weights = prev_day_weights * (1 + prev_day_returns)
+            drifted_weights /= drifted_weights.sum()
+
+            # Calculate trade size and cost
+            trade = (ew_daily_weights.loc[reb_date] - drifted_weights).abs().sum()
+            cost = trade * (TRANSACTION_COST_BPS / 10000)
+            net_ew_daily_returns.loc[reb_date] -= cost
+            # logging.info(f"Applied cost of {cost:.4f} to EW benchmark on {reb_date.date()}")
+
         net_ew_daily_returns = net_ew_daily_returns.loc[START_DATE:END_DATE]
+        logging.info("Finished applying quarterly transaction costs to benchmark.")
 
     # Ensure benchmark returns are aligned with portfolio returns for metric calculation
     aligned_benchmark = benchmark_returns.reindex(portfolio_returns.index).ffill()
