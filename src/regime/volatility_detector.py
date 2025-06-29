@@ -32,10 +32,14 @@ class VolatilityThresholdDetector:
         Returns:
             pd.Series: A series of regime scores (0 for risk-off, 1 for risk-on).
         """
-        volatility = returns.rolling(self.window).std().dropna()
-        threshold = volatility.quantile(self.quantile)
+        # Calculate rolling volatility to avoid using future data
+        rolling_vol = returns.rolling(self.window).std()
 
-        # Risk-off (0) if volatility is above the threshold, risk-on (1) otherwise
-        risk_scores = (volatility <= threshold).astype(float)
+        # Use an expanding window to calculate the quantile, removing look-ahead bias
+        threshold = rolling_vol.expanding().quantile(self.quantile)
 
-        return risk_scores
+        # Risk-on (1) if volatility is below the threshold, risk-off (0) otherwise.
+        # This correctly identifies periods of high volatility as "risk-off" (0).
+        risk_scores = (rolling_vol <= threshold).astype(float)
+
+        return risk_scores.dropna()

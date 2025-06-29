@@ -151,7 +151,8 @@ async def main():
 
     # --- Run Rolling Backtest ---
     CVAR_ALPHA = 0.95
-    TRANSACTION_COST = 0.002  # 0.20% (10 bps per side)
+    # Per-side transaction cost. The optimizer's turnover calculation already accounts for buys and sells.
+    TRANSACTION_COST = 0.0010  # 10 bps per side
     MAX_WEIGHT = 0.05
     cvar_optimizer = CVaROptimizer(
         alpha=CVAR_ALPHA,
@@ -384,8 +385,9 @@ async def main():
         logging.info("Successfully saved metrics.")
 
         # Save daily returns for the full 2010-2024 period
-        returns_path = RESULTS_DIR / "baseline_daily_returns.csv"
-        logging.info(f"Attempting to save daily returns to {returns_path}...")
+        baseline_returns_path = RESULTS_DIR / "baseline_daily_returns.csv"
+        net_ew_daily_returns.to_csv(baseline_returns_path, header=["equal_weighted_returns"])
+        logging.info(f"Saved net-of-cost baseline equal-weighted returns to {baseline_returns_path}")
 
         # Align all series to the full backtest period for a comprehensive comparison file
         common_index = full_period_returns.index
@@ -394,7 +396,7 @@ async def main():
         aligned_benchmark = benchmark_returns.reindex(common_index).ffill()
 
         # Align Equal Weighted returns
-        equal_weight_returns = asset_returns.mean(axis=1).reindex(common_index).ffill()
+        equal_weight_returns = net_ew_daily_returns.reindex(common_index).fillna(0)
 
         # Align Cap-Weighted returns
         aligned_market_caps = market_cap_data.reindex(common_index).ffill()

@@ -500,11 +500,13 @@ class RollingCVaROptimizer:
                 )
                 turnover = (aligned_target - aligned_drifted).abs().sum()
 
-            # Calculate and apply cost
-            cost = turnover * self.optimizer.transaction_cost
-            portfolio_returns.loc[date] -= cost
+            # Deduct transaction costs from the gross return.
+            # `turnover` is the sum of absolute changes in weights (i.e., total volume of trades).
+            # `transaction_cost` is the per-side cost, so this correctly models the total cost.
+            transaction_cost = turnover * self.optimizer.transaction_cost
+            portfolio_returns.loc[date] -= transaction_cost
             logger.info(
-                f"Applied transaction cost on {date}: {cost:.4f} (Turnover: {turnover:.2%})"
+                f"Applied transaction cost on {date}: {transaction_cost:.4f} (Turnover: {turnover:.2%})"
             )
 
         rebalance_df.reset_index(inplace=True)

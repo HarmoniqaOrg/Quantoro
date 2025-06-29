@@ -28,7 +28,7 @@ The project was structured around three progressive tasks designed to build and 
 ## 3. Methodology
 
 ### 3.1. Baseline CVaR Optimization
-The baseline strategy implements the Conditional Value-at-Risk (CVaR) optimization framework as detailed in the CLEIR paper. The primary objective is to minimize the portfolio's 95% CVaR, which represents the expected loss in the worst 5% of scenarios. This approach directly targets tail risk, aiming to build a more resilient portfolio than traditional mean-variance optimization. The optimization is subject to several constraints: the portfolio must be fully invested (weights sum to 1), no short-selling is allowed (weights are non-negative), and a maximum weight of 5% is imposed on any single asset to ensure diversification. The model is rebalanced quarterly.
+The baseline strategy implements the Conditional Value-at-Risk (CVaR) optimization framework as detailed in the CLEIR paper. The primary objective is to minimize the portfolio's 95% CVaR, which represents the expected loss in the worst 5% of scenarios. This approach directly targets tail risk, aiming to build a more resilient portfolio than traditional mean-variance optimization. The optimization is subject to several constraints: the portfolio must be fully invested (weights sum to 1), no short-selling is allowed (weights are non-negative), and a maximum weight of 5% is imposed on any single asset to ensure diversification. The model is rebalanced quarterly. To accurately model real-world trading frictions, a per-side transaction cost of 10 bps (0.1%) is applied to the total trade volume at each rebalance.
 
 ### 3.2. Regime-Aware Enhancement
 

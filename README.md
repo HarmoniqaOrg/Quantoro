@@ -26,7 +26,7 @@ This project develops and backtests three distinct portfolio optimization strate
 
 1.  **Task A: Baseline CVaR Optimization**
 
-    This task implements the baseline CVaR optimization strategy reproduced from the CLEIR paper as specified in the assignment. The model optimizes a long-only portfolio of 60 liquid US stocks, minimizing the 95% daily CVaR while adhering to constraints (fully invested, no shorting, max 5% weight per stock). The portfolio is rebalanced quarterly, and transaction costs of 10 bps are applied.
+    This task implements the baseline CVaR optimization strategy reproduced from the CLEIR paper as specified in the assignment. The model optimizes a long-only portfolio of 60 liquid US stocks, minimizing the 95% daily CVaR while adhering to constraints (fully invested, no shorting, max 5% weight per stock). The portfolio is rebalanced quarterly. A per-side transaction cost of 10 bps (0.1%) is applied to the total trade volume at each rebalance.
 
     #### Performance Comparison
 
