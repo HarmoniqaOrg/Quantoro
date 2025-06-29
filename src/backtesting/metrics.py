@@ -91,7 +91,7 @@ def calculate_raw_metrics(
         metrics["Annual Turnover"] = np.nan
 
     alpha_val, beta_val = ep.alpha_beta(portfolio_returns, benchmark_returns)
-    metrics["Alpha (annual)"] = alpha_val
+    metrics["Alpha"] = alpha_val
     metrics["Beta"] = beta_val
     metrics["Information Ratio"] = ep.sharpe_ratio(portfolio_returns - benchmark_returns)
     metrics["Skewness"] = portfolio_returns.skew()
@@ -126,7 +126,7 @@ def format_metrics_for_display(
     ] = f"{raw_metrics['Sharpe Ratio']:.2f} ({sr_lower:.2f} - {sr_upper:.2f})"
     display_metrics["Calmar Ratio"] = f"{raw_metrics['Calmar Ratio']:.2f}"
     display_metrics["Sortino Ratio"] = f"{raw_metrics['Sortino Ratio']:.2f}"
-    display_metrics["Alpha (annual)"] = f"{raw_metrics['Alpha (annual)']:.4f}"
+    display_metrics["Alpha"] = f"{raw_metrics['Alpha']:.4f}"
     display_metrics["Beta"] = f"{raw_metrics['Beta']:.2f}"
     display_metrics["Information Ratio"] = f"{raw_metrics['Information Ratio']:.2f}"
     display_metrics["Skewness"] = f"{raw_metrics['Skewness']:.2f}"

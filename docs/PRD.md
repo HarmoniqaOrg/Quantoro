@@ -57,10 +57,10 @@ This log summarizes the key technical and design decisions made throughout the p
 ## 5. Success Metrics & Final Outcomes
 
 - **Primary Goal**: Outperform the baseline strategy (Task A) on a risk-adjusted basis (Sharpe Ratio).
-  - **Outcome**: **Achieved.** Both the Regime-Aware (B) and Hybrid ML (C) models delivered higher Sharpe Ratios and absolute returns than the baseline. The Hybrid model was the top performer.
+  - **Outcome**: **Not Achieved.** In the unique 2020-2024 market environment, the Baseline CVaR model delivered the highest Sharpe Ratio. The more complex Regime-Aware (B) and Hybrid ML (C) models, while theoretically more advanced, were slightly hampered by transaction costs and market 'whipsawing'. Their attempts to de-risk were often followed by sharp market recoveries, causing them to miss out on gains and ultimately deliver lower risk-adjusted returns than the simpler baseline. This provided a valuable lesson on the trade-offs between model complexity and performance in volatile markets.
 
 - **Secondary Goal**: Deliver a clear, professional, and fully reproducible project.
-  - **Outcome**: **Achieved.** The project includes a `Makefile` for one-command execution, comprehensive documentation, and clean, modular code.
+  - **Outcome**: **Achieved.** The project includes a `Makefile` for one-command execution, comprehensive documentation (`README.md`, `report.md`), clean, modular code, and passes all quality checks. The entire pipeline from backtesting to report generation is fully automated.
 
 ---
 

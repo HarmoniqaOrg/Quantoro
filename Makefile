@@ -38,7 +38,9 @@ clean:
 # Generate the final report
 report: run-all
 	@echo "--- Consolidating results and generating final report ---"
+	python -m src.utils.generate_task_b_report
 	python -m src.reporting.consolidate_results
+	python -m src.utils.generate_consolidated_plot
 	python -m src.reporting.generate_final_report
 	@echo "--- Final report generated successfully --- "
 
@@ -62,4 +64,3 @@ lint:
 type-check:
 	@echo "--- Type checking with MyPy ---"
 	python -m mypy src/ --ignore-missing-imports
-	@echo "--- Final report generated successfully --- "

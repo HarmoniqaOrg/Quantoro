@@ -1,103 +1,170 @@
+# src/utils/generate_task_b_report.py
+
+import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import os
+from src.backtesting.metrics import calculate_raw_metrics
 
 # --- Configuration ---
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
-DOCS_DIR = os.path.join(PROJECT_ROOT, "docs")
-REPORT_FILE = os.path.join(DOCS_DIR, "report.md")
+RESULTS_DIR = "results"
+DOCS_DIR = "docs"
 
-# --- Plotting Style ---
-sns.set_style("whitegrid")
-plt.rcParams["figure.figsize"] = (15, 7)
-plt.rcParams["axes.titlesize"] = 16
-plt.rcParams["axes.labelsize"] = 12
-plt.rcParams["xtick.labelsize"] = 10
-plt.rcParams["ytick.labelsize"] = 10
-plt.rcParams["legend.fontsize"] = 10
 
-def generate_regime_plot(regime_probs: pd.DataFrame, spy_prices: pd.DataFrame):
-    """Generates and saves a plot of regime probabilities against the SPY index."""
-    fig, ax1 = plt.subplots()
+def generate_task_b_report():
+    """Generates a comprehensive report for Task B, including a plot with an embedded metrics table."""
+    print("--- Generating Task B Interpretability Report ---")
 
-    # Plot SPY prices on the primary y-axis
-    ax1.plot(spy_prices.index, spy_prices, color='black', label='SPY Price', alpha=0.6)
-    ax1.set_xlabel("Date")
-    ax1.set_ylabel("SPY Price", color='black')
-    ax1.tick_params(axis='y', labelcolor='black')
+    # --- Load Data ---
+    try:
+        # Load original metrics to get turnover later
+        baseline_metrics = pd.read_csv(os.path.join(RESULTS_DIR, "baseline_cvar_performance_2020-2024.csv"), index_col=0).squeeze()
+        regime_metrics = pd.read_csv(os.path.join(RESULTS_DIR, "task_b_regime_aware_cvar_performance.csv"), index_col=0).squeeze()
+        
+        # Load return series
+        baseline_returns_full = pd.read_csv(os.path.join(RESULTS_DIR, "baseline_daily_returns.csv"), index_col=0, parse_dates=True).squeeze()
+        baseline_returns = baseline_returns_full.loc["2020-01-01":].rename("Baseline_CVaR")
+        regime_returns = pd.read_csv(os.path.join(RESULTS_DIR, "task_b_regime_aware_daily_returns.csv"), index_col=0, parse_dates=True).squeeze()
+        benchmark_returns = pd.read_csv(os.path.join(RESULTS_DIR, "spy_daily_returns_2020-2024.csv"), index_col=0, parse_dates=True).squeeze()
+    except FileNotFoundError as e:
+        print(f"Error: Could not find a required data file. {e}")
+        print("Please ensure all backtests have run successfully with the latest changes.")
+        return
 
-    # Create a secondary y-axis for the regime probability
-    ax2 = ax1.twinx()
-    ax2.fill_between(regime_probs.index, 0, regime_probs['risk_off_probability'], 
-                     color='red', alpha=0.3, label='Risk-Off Probability')
-    ax2.set_ylabel("Risk-Off Probability", color='red')
-    ax2.tick_params(axis='y', labelcolor='red')
-    ax2.set_ylim(0, 1)
+    # --- 1. Align Dates for Fair Comparison ---
+    print("Aligning all return series for fair comparison...")
+    # Combine into a single DataFrame to align automatically, dropping any non-common dates
+    combined_returns = pd.DataFrame({
+        'baseline': baseline_returns,
+        'regime': regime_returns,
+        'benchmark': benchmark_returns
+    }).dropna()
 
-    plt.title("Market Regimes vs. S&P 500 Price (2020-2024)")
-    fig.tight_layout()
+    baseline_returns = combined_returns['baseline']
+    regime_returns = combined_returns['regime']
+    benchmark_returns = combined_returns['benchmark']
+
+    print(f"All series aligned. Common date range: {combined_returns.index.min().date()} to {combined_returns.index.max().date()}")
+
+    # --- 2. Recalculate Metrics on Aligned Data ---
+    print("Recalculating performance metrics on aligned data for fair comparison...")
+    spy_metrics = calculate_raw_metrics(benchmark_returns, benchmark_returns)  # Benchmark is its own benchmark
+    baseline_metrics_aligned = calculate_raw_metrics(baseline_returns, benchmark_returns)
+    regime_metrics_aligned = calculate_raw_metrics(regime_returns, benchmark_returns)
+
+    metrics_to_display = ["Annual Return", "Annual Volatility", "Sharpe Ratio", "Max Drawdown", "95% CVaR", "Alpha", "Beta"]
     
-    plot_path = os.path.join(RESULTS_DIR, "regime_vs_spy_plot.png")
-    plt.savefig(plot_path, dpi=300)
-    print(f"Saved regime plot to {plot_path}")
-    return plot_path
+    summary_df = pd.DataFrame({
+        "SPY Benchmark": spy_metrics,
+        "Baseline CVaR": baseline_metrics_aligned,
+        "Regime-Aware CVaR": regime_metrics_aligned
+    }).loc[metrics_to_display]
 
-def create_method_summary() -> str:
-    """Creates the 400-word method summary for Task B."""
-    return """## Task B: Regime-Aware Strategy - Method Summary
+    # Add turnover from original files as it can't be recalculated from returns alone
+    summary_df.loc["Annual Turnover"] = [
+        0.0,  # SPY turnover is 0 by definition
+        baseline_metrics.get("Annual Turnover", 0.0),
+        regime_metrics.get("Annual Turnover", 0.0)
+    ]
 
-The regime-aware strategy enhances the baseline CVaR optimization by dynamically adjusting its risk parameters in response to changing market conditions. The core objective is to improve risk-adjusted returns by adopting a more defensive posture during periods of high market stress ('risk-off') and a more aggressive stance during stable periods ('risk-on').
+    # --- 3. Generate Cumulative Performance Plot with Table ---
+    plt.style.use('seaborn-v0_8-whitegrid')
+    fig = plt.figure(figsize=(16, 10))
+    gs = fig.add_gridspec(2, 1, height_ratios=[3, 1])
 
-To achieve this, we developed an `EnsembleRegimeDetector` that synthesizes signals from multiple indicators to produce a continuous probability score, representing the likelihood of being in a 'risk-off' state. This model combines a Simple Moving Average (SMA) crossover system with a Mean Reversion Score (MRS) indicator. The SMA component captures long-term trend-following signals, identifying sustained market downturns, while the MRS component detects short-term volatility spikes and potential trend reversals. By blending these signals with a 70/30 weight, the ensemble model provides a more robust and nuanced view of the market regime than either indicator could alone, avoiding whipsaws from short-term noise while remaining responsive to significant trend shifts.
+    ax1 = fig.add_subplot(gs[0])
+    ax2 = fig.add_subplot(gs[1])
 
-The 'risk-off' probability score, ranging from 0 (fully risk-on) to 1 (fully risk-off), is fed into the `RegimeAwareCVaROptimizer`. This optimizer linearly interpolates its key parameters—CVaR confidence level (alpha), LASSO penalty, and maximum asset weight—between predefined 'risk-on' and 'risk-off' settings. For instance, in a high-stress environment (probability approaching 1), the optimizer increases the CVaR alpha (e.g., from 0.95 to 0.99), raises the LASSO penalty to enforce greater diversification, and reduces the maximum allowable weight for any single asset. This dynamic adjustment mechanism allows the portfolio to proactively manage risk, aiming to minimize drawdowns during turbulent markets while still capturing upside potential during calm periods. The result is a more adaptive and resilient investment strategy tailored to the prevailing market environment.
+    # Plot cumulative returns
+    baseline_cum = (1 + baseline_returns).cumprod()
+    regime_cum = (1 + regime_returns).cumprod()
+    benchmark_cum = (1 + benchmark_returns).cumprod()
+
+    ax1.plot(regime_cum.index, regime_cum, label="Regime-Aware CVaR", color="blue", linestyle="-")
+    ax1.plot(baseline_cum.index, baseline_cum, label="Baseline CVaR", color="black", linestyle="-", alpha=0.8)
+    ax1.plot(benchmark_cum.index, benchmark_cum, label="SPY Benchmark", color="green", linestyle="--")
+    ax1.set_title("Cumulative Performance Comparison (2020-2024)", fontsize=16)
+    ax1.set_ylabel("Cumulative Returns")
+    ax1.legend()
+    ax1.grid(True)
+
+    # Add metrics table
+    ax2.axis('off')
+    table = ax2.table(cellText=summary_df.round(4).values, colLabels=summary_df.columns, rowLabels=summary_df.index, cellLoc='center', loc='center')
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1, 1.5)
+
+    plt.tight_layout(pad=3.0)
+    plot_path = os.path.join(RESULTS_DIR, "task_b_performance_comparison.png")
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"Saved performance comparison plot with metrics table to {plot_path}")
+
+    # --- 4. Generate Feature Importance Plot ---
+    feature_importance = pd.Series({'SMA Trend Signal': 0.7, 'Volatility Signal': 0.3}, name="Feature Importance")
+    feature_importance = feature_importance.sort_values(ascending=False)
+
+    plt.figure(figsize=(10, 6))
+    sns.barplot(x=feature_importance.values, y=feature_importance.index, palette="viridis")
+    plt.title('Static Feature Importance in Ensemble Regime Detector')
+    plt.xlabel('Assigned Weight')
+    plt.ylabel('Feature')
+    plt.xlim(0, 1)
+
+    importance_plot_path = os.path.join(RESULTS_DIR, "task_b_regime_feature_importance.png")
+    plt.savefig(importance_plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"Saved feature importance plot to {importance_plot_path}")
+
+    # --- 5. Update Main Report File ---
+    md_table = summary_df.to_markdown(floatfmt=".4f")
+    report_content = f"""### Task B: Regime-Aware Enhancement
+
+This task enhanced the baseline CVaR model by incorporating a dynamic regime detection model. The model uses an ensemble of SMA trend-following and volatility signals to calculate a continuous `risk_off_probability`. This probability is then used to interpolate the CVaR optimizer's parameters (alpha, lasso penalty, max weight) between a conservative 'risk-off' setting and an aggressive 'risk-on' setting. To prevent excessive trading from signal noise, the probability is smoothed with a 10-day moving average. This allows the portfolio to dynamically adapt its risk posture based on more persistent market conditions.
+
+#### Performance Analysis
+
+The plot below compares the cumulative returns of the Regime-Aware strategy against the Baseline CVaR model and the SPY benchmark, with a summary of key performance metrics included directly below the chart.
+
+![Performance Comparison](results/task_b_performance_comparison.png)
+
+#### Regime Model Interpretability
+
+The regime detection model is a simple, interpretable ensemble. The feature importance is based on the static weights assigned to each signal in the ensemble.
+
+![Feature Importance](results/task_b_regime_feature_importance.png)
+
 """
 
-def create_interpretability_report(plot_path: str) -> str:
-    """Creates the interpretability report for Task B."""
-    return f"""## Task B: Interpretability Report
+    report_file_path = os.path.join(DOCS_DIR, "report.md")
+    try:
+        with open(report_file_path, "r", encoding='utf-8') as f:
+            full_report = f.read()
+    except FileNotFoundError:
+        print(f"Warning: {report_file_path} not found. Will create it.")
+        full_report = ""
 
-The plot below visualizes the output of our `EnsembleRegimeDetector` against the S&P 500 price from 2020 to 2024. The red shaded area represents the calculated 'risk-off' probability, with higher intensity indicating greater market stress as perceived by the model.
+    start_marker = "### Task B: Regime-Aware Enhancement"
+    end_marker = "### Task C:"
 
-![Regime vs. SPY Price]({os.path.relpath(plot_path, DOCS_DIR)})
+    start_index = full_report.find(start_marker)
+    end_index = full_report.find(end_marker)
 
-**Key Observations:**
+    if start_index != -1 and end_index != -1:
+        new_report = full_report[:start_index] + report_content + full_report[end_index:]
+        with open(report_file_path, "w", encoding='utf-8') as f:
+            f.write(new_report)
+        print(f"Updated Task B section in {report_file_path}")
+    else:
+        print("Could not find Task B markers in report.md. Appending content.")
+        with open(report_file_path, "a", encoding='utf-8') as f:
+            f.write("\n" + report_content)
 
-1.  **COVID-19 Crash (Q1 2020):** The model correctly identifies the massive volatility spike, with the risk-off probability rapidly surging to 1.0. This would have triggered the optimizer's most defensive settings, tightening risk constraints to protect capital during the sharp downturn.
+    print("--- Task B Report Generation Complete ---")
 
-2.  **2022 Bear Market:** The detector effectively captures the prolonged market decline throughout 2022. The risk-off probability remains consistently elevated, reflecting the persistent negative trend and volatility. This demonstrates the model's ability to recognize and adapt to sustained bear markets, not just short-term shocks.
-
-3.  **Periods of Calm (2021 & 2023):** During the strong bull run of 2021 and the recovery in 2023, the risk-off probability stays near zero. In these 'risk-on' phases, the optimizer would have used more aggressive parameters, allowing for higher potential returns by taking on more concentrated positions.
-
-The visualization confirms that the regime detection model is performing as intended. It successfully flags periods of significant market distress, providing the necessary signal for the `RegimeAwareCVaROptimizer` to dynamically adjust its strategy. This proactive risk management is the key mechanism through which the model aims to outperform a static baseline strategy.
-"""
-
-def main():
-    """Main function to generate the Task B report content."""
-    print("--- Generating Task B Report ---")
-    # Load data
-    regime_probs = pd.read_csv(os.path.join(RESULTS_DIR, "regime_probabilities.csv"), index_col=0, parse_dates=True)
-    all_prices = pd.read_csv(os.path.join(RESULTS_DIR, "sp500_prices_2010_2024.csv"), index_col=0, parse_dates=True)
-    spy_prices = all_prices[["SPY"]].loc[regime_probs.index.min():regime_probs.index.max()]
-
-    # Generate plot
-    plot_path = generate_regime_plot(regime_probs, spy_prices)
-
-    # Create report content
-    method_summary = create_method_summary()
-    interpretability_report = create_interpretability_report(plot_path)
-
-    # Append to main report file
-    with open(REPORT_FILE, "a") as f:
-        f.write("\n\n" + "-"*80 + "\n")
-        f.write(method_summary)
-        f.write("\n\n")
-        f.write(interpretability_report)
-    
-    print(f"Appended Task B analysis to {REPORT_FILE}")
-    print("--- Report Generation Complete ---")
 
 if __name__ == "__main__":
-    main()
+    generate_task_b_report()
+
+

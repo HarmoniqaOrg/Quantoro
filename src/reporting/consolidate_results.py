@@ -4,8 +4,8 @@ import os
 RESULTS_DIR = "results"
 
 files_to_consolidate = {
-    "Baseline CVaR (A)": os.path.join(RESULTS_DIR, "baseline_cvar_performance_metrics.csv"),
-    "Regime-Aware CVaR (B)": os.path.join(RESULTS_DIR, "regime_aware_cvar_performance.csv"),
+    "Baseline CVaR (A)": os.path.join(RESULTS_DIR, "baseline_cvar_performance_2020-2024.csv"),
+    "Regime-Aware CVaR (B)": os.path.join(RESULTS_DIR, "task_b_regime_aware_cvar_performance.csv"),
     "Hybrid ML Alpha (C)": os.path.join(RESULTS_DIR, "hybrid_model_performance.csv"),
 }
 

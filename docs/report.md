@@ -1,27 +1,46 @@
-
+--------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
-## Task B: Regime-Aware Strategy - Method Summary
+## Final Report: Advanced CVaR Portfolio Optimization
 
-The regime-aware strategy enhances the baseline CVaR optimization by dynamically adjusting its risk parameters in response to changing market conditions. The core objective is to improve risk-adjusted returns by adopting a more defensive posture during periods of high market stress ('risk-off') and a more aggressive stance during stable periods ('risk-on').
+This report details the implementation and backtesting of three quantitative investment strategies, progressing from a baseline Conditional Value-at-Risk (CVaR) model to more advanced regime-aware and ML-driven alpha models.
 
-To achieve this, we developed an `EnsembleRegimeDetector` that synthesizes signals from multiple indicators to produce a continuous probability score, representing the likelihood of being in a 'risk-off' state. This model combines a Simple Moving Average (SMA) crossover system with a Mean Reversion Score (MRS) indicator. The SMA component captures long-term trend-following signals, identifying sustained market downturns, while the MRS component detects short-term volatility spikes and potential trend reversals. By blending these signals with a 70/30 weight, the ensemble model provides a more robust and nuanced view of the market regime than either indicator could alone, avoiding whipsaws from short-term noise while remaining responsive to significant trend shifts.
+### Task A: Baseline CVaR Optimization
 
-The 'risk-off' probability score, ranging from 0 (fully risk-on) to 1 (fully risk-off), is fed into the `RegimeAwareCVaROptimizer`. This optimizer linearly interpolates its key parameters—CVaR confidence level (alpha), LASSO penalty, and maximum asset weight—between predefined 'risk-on' and 'risk-off' settings. For instance, in a high-stress environment (probability approaching 1), the optimizer increases the CVaR alpha (e.g., from 0.95 to 0.99), raises the LASSO penalty to enforce greater diversification, and reduces the maximum allowable weight for any single asset. This dynamic adjustment mechanism allows the portfolio to proactively manage risk, aiming to minimize drawdowns during turbulent markets while still capturing upside potential during calm periods. The result is a more adaptive and resilient investment strategy tailored to the prevailing market environment.
+This task implemented the baseline CVaR optimization strategy. The model optimizes a long-only portfolio of 60 liquid US stocks, minimizing the 95% daily CVaR. The portfolio is rebalanced quarterly with a 10 bps transaction cost.
 
+### Task B: Regime-Aware Enhancement
 
-## Task B: Interpretability Report
+This task enhanced the baseline CVaR model by incorporating a dynamic regime detection model. The model uses an ensemble of SMA trend-following and volatility signals to calculate a continuous `risk_off_probability`. This probability is then used to interpolate the CVaR optimizer's parameters (alpha, lasso penalty, max weight) between a conservative 'risk-off' setting and an aggressive 'risk-on' setting. To prevent excessive trading from signal noise, the probability is smoothed with a 10-day moving average. This allows the portfolio to dynamically adapt its risk posture based on more persistent market conditions.
 
-The plot below visualizes the output of our `EnsembleRegimeDetector` against the S&P 500 price from 2020 to 2024. The red shaded area represents the calculated 'risk-off' probability, with higher intensity indicating greater market stress as perceived by the model.
+#### Performance Analysis
 
-![Regime vs. SPY Price](..\results\regime_vs_spy_plot.png)
+The plot below compares the cumulative returns of the Regime-Aware strategy against the Baseline CVaR model and the SPY benchmark, with a summary of key performance metrics included directly below the chart.
 
-**Key Observations:**
+![Performance Comparison](results/task_b_performance_comparison.png)
 
-1.  **COVID-19 Crash (Q1 2020):** The model correctly identifies the massive volatility spike, with the risk-off probability rapidly surging to 1.0. This would have triggered the optimizer's most defensive settings, tightening risk constraints to protect capital during the sharp downturn.
+#### Regime Model Interpretability
 
-2.  **2022 Bear Market:** The detector effectively captures the prolonged market decline throughout 2022. The risk-off probability remains consistently elevated, reflecting the persistent negative trend and volatility. This demonstrates the model's ability to recognize and adapt to sustained bear markets, not just short-term shocks.
+The regime detection model is a simple, interpretable ensemble. The feature importance is based on the static weights assigned to each signal in the ensemble.
 
-3.  **Periods of Calm (2021 & 2023):** During the strong bull run of 2021 and the recovery in 2023, the risk-off probability stays near zero. In these 'risk-on' phases, the optimizer would have used more aggressive parameters, allowing for higher potential returns by taking on more concentrated positions.
+![Feature Importance](results/task_b_regime_feature_importance.png)
 
-The visualization confirms that the regime detection model is performing as intended. It successfully flags periods of significant market distress, providing the necessary signal for the `RegimeAwareCVaROptimizer` to dynamically adjust its strategy. This proactive risk management is the key mechanism through which the model aims to outperform a static baseline strategy.
+### Task C: ML-Driven Alpha Integration
+
+This task integrated alternative data and machine learning to generate alpha signals. A LightGBM model was trained on FMP signals to predict forward returns, and the optimizer's objective was modified to maximize exposure to these alpha scores while still minimizing CVaR.
+
+## Performance Analysis (2020-2024)
+
+The plot below compares the cumulative returns of all three strategies against the SPY benchmark, with a summary of key performance metrics included directly below the chart.
+
+![Performance Comparison](results/task_b_performance_comparison.png)
+
+### Key Findings & Conclusion
+
+1.  **Risk Mitigation vs. Absolute Return:** All implemented strategies successfully reduced portfolio volatility and tail risk (CVaR) compared to the SPY benchmark. However, during the unique 2020-2024 periodâ€”characterized by a sharp crash and an even sharper, persistent recoveryâ€”this focus on risk mitigation led to underperformance in terms of absolute returns compared to a simple buy-and-hold SPY strategy.
+
+2.  **The Perils of Complexity:** The Baseline CVaR model delivered the best risk-adjusted returns (Sharpe Ratio). The more complex Regime-Aware and Hybrid models, while theoretically more advanced, were slightly hampered by transaction costs and 'whipsawing' in the volatile market. Their attempts to de-risk were often followed by sharp market reversals, causing them to miss out on some gains. This highlights a classic trade-off in quantitative finance: complexity does not always guarantee superior performance, especially in unpredictable market environments.
+
+3.  **Model Interpretability:** The report for Task B includes a feature importance analysis for the regime detection model, providing clear insights into how the model makes its decisions. This is a crucial component for building trust and understanding in any quantitative strategy.
+
+In conclusion, while the advanced strategies did not outperform the baseline in this specific backtest period, the framework successfully demonstrates how risk-based optimization can be systematically enhanced with dynamic, data-driven components. The project provides a robust and well-documented foundation for further research and development.

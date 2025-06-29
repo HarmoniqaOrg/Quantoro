@@ -21,6 +21,18 @@ The plot below shows the SPY price index alongside the model-generated probabili
 
 ### Analysis of Model Behavior:
 
+## 4. Feature Importance
+
+To ensure the model is interpretable, we can analyze the contribution of each component to the final regime signal. Since our ensemble model uses a simple weighted average, the feature importance is directly represented by the static weights assigned to each signal.
+
+- **SMA Trend Signal**: 70% weight
+- **Volatility Signal**: 30% weight
+
+The plot below visualizes this breakdown, providing a clear and direct measure of feature importance.
+
+![Feature Importance Plot](../results/task_b_regime_feature_importance.png)
+*Figure 2: Static Feature Importance in the Ensemble Regime Detector.*
+
 The plot confirms that the `EnsembleRegimeDetector` correctly identified and responded to major market shifts during the backtest period. The model's behavior is a blend of trend-following (SMA) and volatility-sensing signals:
 
 -   **COVID-19 Crash (Q1 2020):** The model's "Risk-Off" probability (the shaded red area) spiked dramatically in late February. This was driven by both the `VolatilityThresholdDetector` reacting to the explosion in volatility and the `SMARegimeDetector` confirming the new downtrend as the 50-day average crossed below the 200-day. This textbook detection prompted the optimizer to shift to its most defensive parameters, preserving capital during the crash.

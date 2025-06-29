@@ -20,6 +20,18 @@ The final **Hybrid Regime-Aware Alpha Model** delivered robust performance, succ
 
 ---
 
+## ❯ Project Status
+
+This project is complete. All backtests have been successfully executed, and the final report has been generated. The analysis compares three strategies: a Baseline CVaR model, a Regime-Aware CVaR model, and a Hybrid model incorporating ML-based alpha signals.
+
+### Key Findings
+
+- **Risk Mitigation:** All implemented strategies successfully reduced portfolio volatility and tail risk (as measured by CVaR) compared to the SPY benchmark.
+- **Performance in a Bull Market:** During the highly unusual 2020-2024 period, which was characterized by a strong, swift recovery and persistent bull market trends, the risk-mitigation focus of the strategies led to underperformance in terms of absolute returns compared to a simple buy-and-hold SPY strategy.
+- **Strategy Comparison:** The Baseline CVaR model provided the best risk-adjusted returns (Sharpe Ratio). The more active Regime-Aware and Hybrid models, while theoretically more advanced, were slightly hampered by transaction costs and whipsawing in the volatile market, leading to slightly lower returns.
+
+---
+
 ## ❯ Core Strategies Implemented
 
 This project develops and backtests three distinct portfolio optimization strategies:
@@ -104,31 +116,13 @@ Task C requires an API key from [Financial Modeling Prep (FMP)](https://site.fin
 
 ### Running the Backtests
 
-The easiest way to run the backtests is by using the provided `Makefile`.
+To run all backtests and generate the final consolidated report, simply use the `Makefile`:
 
-1.  **Run all backtests sequentially:**
-    ```bash
-    make run-all
-    ```
-
-2.  **Run individual backtests:**
-    ```bash
-    # Run Task A: Baseline CVaR
-    make run-baseline
-
-    # Run Task B: Regime-Aware CVaR
-    make run-regime
-
-    # Run Task C: Hybrid ML Alpha Model
-    make run-hybrid
-    ```
-
-Alternatively, you can run the scripts directly using Python's module flag (`-m`), which is the recommended approach:
 ```bash
-python -m src.run_full_backtest
-python -m src.run_regime_aware_backtest
-python -m src.run_hybrid_model_backtest
+make report
 ```
+
+This single command will execute all backtests sequentially, generate the required performance comparison plots, and compile the final `report.pdf`.
 
 ### Testing
 

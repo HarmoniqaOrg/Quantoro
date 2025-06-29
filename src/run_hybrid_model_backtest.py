@@ -28,12 +28,13 @@ from src.optimization.cvar_optimizer import AlphaAwareCVaROptimizer  # noqa: E40
 from src.regime.ensemble_regime import EnsembleRegimeDetector  # noqa: E402
 
 # --- Configuration ---
-LOG_LEVEL = logging.DEBUG
+LOG_LEVEL = logging.INFO
 RESULTS_DIR = os.path.join(project_root, "results")
 PRICE_DATA_PATH = os.path.join(project_root, "results", "sp500_prices_2010_2024.csv")
 BENCHMARK_TICKER = "SPY"
-BACKTEST_START_DATE = "2020-01-01"
-BACKTEST_END_DATE = "2024-12-31"
+START_DATE = "2010-01-01"
+END_DATE = "2024-12-31"
+EVALUATION_START_DATE = "2020-01-01"
 FMP_API_KEY = os.getenv("FMP_API_KEY")
 
 # --- Setup ---
@@ -81,14 +82,14 @@ def main():
     """Main function to run the hybrid model backtest."""
     logging.info("--- Starting Hybrid Regime-Aware Alpha Model Backtest ---")
 
-    # --- 1. Load All Data Sources ---
-    logging.info("Loading all data sources...")
+    # --- 1. Load All Data Sources for Full Period ---
+    logging.info("Loading all data sources for 2010-2024...")
     price_data = pd.read_csv(PRICE_DATA_PATH, index_col="date", parse_dates=True)
     universe = [col for col in price_data.columns if col != BENCHMARK_TICKER]
     data_processor = DataProcessor()
     returns_data = data_processor.calculate_returns(price_data, log_returns=False)
-    benchmark_returns = returns_data[BENCHMARK_TICKER]
-    asset_returns = returns_data.drop(columns=[BENCHMARK_TICKER])
+    benchmark_returns_full = returns_data[BENCHMARK_TICKER]
+    asset_returns_full = returns_data.drop(columns=[BENCHMARK_TICKER])
 
     logging.info("Fetching FMP premium signals...")
     signal_fetcher = FmpDataLoader(api_key=FMP_API_KEY)
@@ -96,9 +97,7 @@ def main():
 
     logging.info("Fetching Google Trends data...")
     trends_loader = GoogleTrendsLoader()
-    trends_data = trends_loader.get_trends_for_universe(
-        universe, start_date="2010-01-01", end_date=BACKTEST_END_DATE
-    )
+    trends_data = trends_loader.get_trends_for_universe(universe, start_date=START_DATE, end_date=END_DATE)
     logging.info("All data loaded.")
 
     # --- 2. Initialize Models & Detectors ---
@@ -109,87 +108,76 @@ def main():
     ml_alpha_model = MLAlphaModel()
     optimizer = AlphaAwareCVaROptimizer(transaction_cost=0.001, solver="SCS")
 
-    # --- 3. Run Rolling Backtest ---
-    logging.info("Running rolling backtest with dynamic regimes and ML alpha...")
-    rebalance_dates = pd.date_range(
-        start=BACKTEST_START_DATE, end=BACKTEST_END_DATE, freq="Q"
-    ).to_series()
-    rebalance_dates = rebalance_dates[rebalance_dates.isin(asset_returns.index)]
-    logging.info(f"Found {len(rebalance_dates)} rebalancing dates.")
+    # --- 3. Run Rolling Backtest on Full History ---
+    logging.info("Running rolling backtest on full 2010-2024 period...")
+    rebalance_dates = pd.date_range(start=START_DATE, end=END_DATE, freq="Q").to_series()
+    rebalance_dates = rebalance_dates[rebalance_dates.isin(asset_returns_full.index)]
 
     all_weights = {}
     current_weights = pd.Series(1 / len(universe), index=universe)
 
     for date in tqdm(rebalance_dates, desc="Running Hybrid Backtest"):
-        hist_returns = asset_returns.loc[:date].tail(252)
+        hist_returns = asset_returns_full.loc[:date].tail(252)
         if hist_returns.shape[0] < 252:
             continue
 
-        # 3.1: Determine regime and set optimizer parameters
         risk_off_prob = regime_probs.loc[date, "risk_off_probability"]
-        if risk_off_prob > 0.5:
-            optimizer.set_params(alpha=0.99, lasso_penalty=0.05, max_weight=0.03)
-        else:
-            optimizer.set_params(alpha=0.95, lasso_penalty=0.01, max_weight=0.07)
+        optimizer.set_params(alpha=0.99 if risk_off_prob > 0.5 else 0.95, lasso_penalty=0.05 if risk_off_prob > 0.5 else 0.01, max_weight=0.03 if risk_off_prob > 0.5 else 0.07)
 
-        # 3.2: Build features and train ML model
-        X_train, y_train = build_hybrid_feature_set(
-            date, hist_returns, raw_fmp_signals, trends_data, 252, 63
-        )
+        X_train, y_train = build_hybrid_feature_set(date, hist_returns, raw_fmp_signals, trends_data, 252, 63)
         ml_alpha_model.train_model(X_train, y_train)
 
-        # 3.3: Generate alpha scores for current date
         X_pred = get_hybrid_prediction_features(date, hist_returns, raw_fmp_signals, trends_data)
         alpha_scores = ml_alpha_model.predict_alpha(X_pred)
 
-        # 3.4: Run optimization
         try:
-            opt_result = optimizer.optimize(
-                returns=hist_returns,
-                alpha_scores=alpha_scores,
-                benchmark_returns=benchmark_returns.loc[hist_returns.index],
-                current_weights=current_weights.values,
-            )
+            opt_result = optimizer.optimize(returns=hist_returns, alpha_scores=alpha_scores, benchmark_returns=benchmark_returns_full.loc[hist_returns.index], current_weights=current_weights.values)
             if opt_result and opt_result.status in ["optimal", "optimal_inaccurate"]:
                 current_weights = pd.Series(opt_result.weights, index=hist_returns.columns)
-            else:
-                logging.warning(f"Optimization non-optimal on {date}. Holding weights.")
         except Exception as e:
             logging.error(f"Optimization failed on {date}: {e}. Holding weights.")
 
         all_weights[date] = current_weights
 
-    # --- 4. Calculate and Save Metrics ---
-    logging.info("Calculating and saving performance metrics...")
-    weights_df = pd.DataFrame(all_weights).T.reindex(asset_returns.index, method="ffill").dropna()
-    logging.info(f"Generated weights_df with shape: {weights_df.shape}")
-    if weights_df.empty:
-        logging.error(
-            "Backtest generated no weights. Performance file will not be created. Exiting."
-        )
+    # --- 4. Slice to Evaluation Period and Calculate Metrics ---
+    logging.info("Slicing results to evaluation period and calculating performance...")
+    weights_df_full = pd.DataFrame(all_weights).T.reindex(asset_returns_full.index, method="ffill").dropna()
+    daily_returns_raw_full = (weights_df_full * asset_returns_full).sum(axis=1)
+
+    weights_df = weights_df_full.loc[EVALUATION_START_DATE:]
+    asset_returns = asset_returns_full.loc[EVALUATION_START_DATE:]
+    benchmark_returns = benchmark_returns_full.loc[EVALUATION_START_DATE:]
+    daily_returns_raw = daily_returns_raw_full.loc[EVALUATION_START_DATE:]
+
+    weights_df, asset_returns = weights_df.align(asset_returns, join='inner', axis=0)
+    daily_returns_raw = daily_returns_raw.reindex(asset_returns.index)
+    benchmark_returns = benchmark_returns.reindex(asset_returns.index)
+
+    drifted_weights = weights_df.shift(1) * (1 + asset_returns.shift(1))
+    drifted_weights = drifted_weights.div(drifted_weights.sum(axis=1), axis=0).fillna(0)
+    turnover = (weights_df - drifted_weights).abs().sum(axis=1)
+    transaction_costs = turnover * 0.001
+    daily_returns_net = (daily_returns_raw - transaction_costs).dropna()
+    daily_returns_net.name = "Hybrid_Model"
+
+    if daily_returns_net.empty:
+        logging.error("Backtest generated no returns for the evaluation period. Exiting.")
         return
 
-    daily_returns = (
-        (weights_df * asset_returns).sum(axis=1).loc[BACKTEST_START_DATE:BACKTEST_END_DATE]
-    )
-    logging.info(f"Generated daily_returns with shape: {daily_returns.shape}")
-    if daily_returns.empty:
-        logging.error(
-            "Backtest generated no returns. Performance file will not be created. Exiting."
-        )
-        return
+    raw_metrics = calculate_raw_metrics(daily_returns_net, benchmark_returns, daily_weights=weights_df)
+    display_metrics = format_metrics_for_display(raw_metrics, daily_returns_net)
 
-    raw_metrics = calculate_raw_metrics(daily_returns, benchmark_returns)
-    display_metrics = format_metrics_for_display(raw_metrics, daily_returns)
+    metrics_path = os.path.join(RESULTS_DIR, "task_c_hybrid_model_performance.csv")
+    weights_path = os.path.join(RESULTS_DIR, "task_c_hybrid_model_weights.csv")
+    returns_path = os.path.join(RESULTS_DIR, "task_c_hybrid_model_returns.csv")
 
-    metrics_path = os.path.join(RESULTS_DIR, "hybrid_model_performance.csv")
-    weights_path = os.path.join(RESULTS_DIR, "hybrid_model_weights.csv")
     raw_metrics.to_csv(metrics_path, header=True)
     weights_df.to_csv(weights_path)
+    daily_returns_net.to_csv(returns_path, header=True)
 
     logging.info(f"Results saved to {RESULTS_DIR}")
     logging.info("--- Hybrid Backtest Complete ---")
-    print("\n--- Hybrid Model Performance Metrics ---")
+    print("\n--- Hybrid Model Performance Metrics (2020-2024) ---")
     print(display_metrics)
 
 

@@ -132,6 +132,13 @@ async def main():
         logging.info(f"Saving raw price data to {price_data_path}...")
         price_data.to_csv(price_data_path)
         logging.info("Successfully saved raw price data.")
+
+        # Also save SPY daily returns for benchmark comparison
+        spy_returns = price_data[['SPY']].pct_change().dropna()
+        spy_returns_path = os.path.join(RESULTS_DIR, "spy_daily_returns_2020-2024.csv")
+        spy_returns.loc['2020-01-01':].to_csv(spy_returns_path)
+        logging.info(f"Saved SPY daily returns to {spy_returns_path}")
+
     except Exception as e:
         logging.error(f"Failed to save price data: {e}")
 
@@ -167,34 +174,49 @@ async def main():
         rebalance_frequency="Q",  # Quarterly
     )
 
-    logging.info("Starting rolling backtest for the 2010-2024 period...")
-    BACKTEST_START_DATE = "2010-01-01"
-    BACKTEST_END_DATE = "2024-12-31"
-
+    logging.info("Starting rolling backtest over the full 2010-2024 period to ensure adequate warm-up...")
     # The RollingCVaROptimizer's backtest method handles the rolling logic.
     rebalance_results, portfolio_returns, daily_weights = rolling_optimizer.backtest(
         returns=asset_returns,
         benchmark_returns=benchmark_returns,
-        start_date=BACKTEST_START_DATE,
-        end_date=BACKTEST_END_DATE,
+        start_date=START_DATE,
+        end_date=END_DATE,
     )
 
-    logging.info("Backtest completed.")
+    logging.info("Full historical backtest completed.")
 
     if portfolio_returns.empty:
         logging.error("Backtest returned no portfolio returns. Exiting.")
         return
 
-    # --- Final Processing: Seeding, Cost Application, and Index Generation ---
-    logging.info("Backtest method finished. Starting final processing...")
+    # --- Trim results to the official evaluation period (2020-2024) ---
+    EVALUATION_START_DATE = "2020-01-01"
+    logging.info(f"Slicing results to evaluation period: {EVALUATION_START_DATE} - {END_DATE}")
+    
+    portfolio_returns = portfolio_returns.loc[EVALUATION_START_DATE:]
+    daily_weights = daily_weights.loc[EVALUATION_START_DATE:]
+    benchmark_returns = benchmark_returns.loc[EVALUATION_START_DATE:]
+
+    # Align indices to ensure one-to-one comparison, dropping any non-common dates
+    portfolio_returns, benchmark_returns = portfolio_returns.align(benchmark_returns, join='inner')
+    daily_weights = daily_weights.reindex(portfolio_returns.index, method='ffill')
+
+    # Save the sliced evaluation-period returns to ensure consistency with other task outputs
+    sliced_returns_path = RESULTS_DIR / "baseline_daily_returns_2020-2024.csv"
+    portfolio_returns.to_csv(sliced_returns_path, header=True)
+    logging.info(f"Saved sliced baseline returns for evaluation period to {sliced_returns_path}")
+
     logging.info(
-        f"Portfolio returns received: {len(portfolio_returns)} days, from {portfolio_returns.index.min()} to {portfolio_returns.index.max()}"
+        f"Evaluation period returns: {len(portfolio_returns)} days, from {portfolio_returns.index.min().date()} to {portfolio_returns.index.max().date()}"
     )
+
+    # --- Final Processing on Evaluation Period Data ---
+    logging.info("Starting final processing on evaluation period data...")
 
     # 1. Seed the backtest for the pre-rebalance period (2010 to first rebalance)
     logging.info("Seeding backtest for the initial period...")
     first_rebalance_date = pd.to_datetime(rebalance_results.iloc[0]["date"])
-    seed_period_returns = asset_returns.loc[BACKTEST_START_DATE:first_rebalance_date]
+    seed_period_returns = asset_returns.loc[START_DATE:first_rebalance_date]
 
     initial_universe = rebalance_results.iloc[0]["universe"]
     ew_seed_weights = pd.Series(1.0 / len(initial_universe), index=initial_universe)
