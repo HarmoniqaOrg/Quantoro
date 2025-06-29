@@ -12,7 +12,7 @@ DOCS_DIR = "docs"
 METRICS_FILE = os.path.join(RESULTS_DIR, "consolidated_performance_metrics.csv")
 TASK_B_SUMMARY_FILE = os.path.join(DOCS_DIR, "task_b_method_summary.md")
 TASK_B_REPORT_FILE = os.path.join(DOCS_DIR, "task_b_interpretability_report.md")
-PERFORMANCE_PLOT = os.path.join(RESULTS_DIR, "baseline_performance_comparison.png")
+PERFORMANCE_PLOT = os.path.join(RESULTS_DIR, "comprehensive_performance_comparison.png")
 REGIME_PLOT = os.path.join(RESULTS_DIR, "regime_interpretability.png")
 OUTPUT_PDF = "report.pdf"
 
@@ -33,7 +33,24 @@ This report details the methodology and results for the three tasks in the Alpha
 # Task A: Baseline CVaR Index
 task_a_summary = """
 ## Task A: Baseline CVaR Index
-The baseline strategy implements the CVaR optimization as described in the CLEIR paper. The portfolio is rebalanced quarterly to minimize the 95% Conditional Value-at-Risk of the tracking error against an equal-weight benchmark. The optimization is subject to constraints including a 5% maximum weight per asset and a 10 bps transaction cost.
+
+As required by the assignment, this section details the results of the baseline CVaR model reproduced from the CLEIR paper.
+
+### Performance Plot
+The plot below compares the cumulative returns of the Baseline CVaR index against the equal-weighted benchmark over the full 2010-2024 period.
+
+![Baseline CVaR Performance vs. Benchmarks](results/task_a_performance_comparison.png)
+
+### Key Output Files for Verification
+To facilitate a thorough review, the following key output files for Task A are located in the `results/` directory. These files provide full transparency into the backtest execution and results.
+
+*   `baseline_cvar_performance_metrics.csv`: A table containing the final required performance metrics (Annual Return, Volatility, Sharpe Ratio, 95% CVaR, Max Drawdown, and Turnover).
+*   `baseline_cvar_index.csv`: The daily index values of the CVaR-optimized portfolio from 2010 to 2024.
+*   `baseline_daily_returns.csv`: The daily returns of the final portfolio strategy.
+*   `baseline_daily_weights.csv`: The daily weights of each asset in the portfolio.
+*   `baseline_cvar_rebalance_weights_2010-2024.csv`: The target weights determined at each quarterly rebalance.
+*   `equal_weighted_daily_returns.csv`: The daily returns of the equal-weighted benchmark.
+*   `equal_weighted_daily_weights.csv`: The daily weights of the equal-weighted benchmark.
 """
 
 # Task B: Regime-Aware Enhancement
