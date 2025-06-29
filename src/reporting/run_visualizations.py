@@ -13,11 +13,11 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 RESULTS_DIR = ROOT_DIR / "results"
 
 # --- File Paths ---
-BASELINE_RETURNS_PATH = RESULTS_DIR / "baseline_daily_returns.csv"
-REGIME_RETURNS_PATH = RESULTS_DIR / "regime_aware_daily_returns.csv"
-HYBRID_RETURNS_PATH = RESULTS_DIR / "hybrid_model_daily_returns.csv"
+BASELINE_RETURNS_PATH = RESULTS_DIR / "task_a_consolidated_daily_returns.csv"
+REGIME_RETURNS_PATH = RESULTS_DIR / "task_b_regime_aware_daily_returns.csv"
+HYBRID_RETURNS_PATH = RESULTS_DIR / "task_c_hybrid_model_returns.csv"
 ALL_PRICES_PATH = RESULTS_DIR / "sp500_prices_2010_2024.csv"
-DAILY_WEIGHTS_PATH = RESULTS_DIR / "baseline_daily_weights.csv"
+DAILY_WEIGHTS_PATH = RESULTS_DIR / "task_a_baseline_daily_weights.csv"
 
 
 def load_all_returns_data() -> dict:

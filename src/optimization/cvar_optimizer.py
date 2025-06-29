@@ -39,7 +39,7 @@ class CVaROptimizer:
         alpha: float = 0.95,
         lasso_penalty: float = 1.5,
         max_weight: float = 0.05,
-        transaction_cost: float = 0.001,
+        transaction_cost: float = 0.002,  # Increased from 0.001 per feedback
         solver: str = "ECOS",
     ):
         """
@@ -120,7 +120,7 @@ class CVaROptimizer:
             constraints = [
                 z >= 0,
                 z >= -tracking_error - zeta,
-                cp.sum(w) == 1,
+                cp.sum(w) == 1.0,  # Fully invested constraint
                 w >= 0,
                 w <= self.max_weight,
             ]

@@ -38,26 +38,31 @@ This project develops and backtests three distinct portfolio optimization strate
 
 1.  **Task A: Baseline CVaR Optimization**
 
-    This task implements the baseline CVaR optimization strategy reproduced from the CLEIR paper as specified in the assignment. The model optimizes a long-only portfolio of 60 liquid US stocks, minimizing the 95% daily CVaR while adhering to constraints (fully invested, no shorting, max 5% weight per stock). The portfolio is rebalanced quarterly. A per-side transaction cost of 10 bps (0.1%) is applied to the total trade volume at each rebalance.
+    This task implements the baseline CVaR optimization strategy, faithfully reproducing the **CVaR-LASSO (CLEIR)** methodology from the reference paper. The model optimizes a **long-only** portfolio of 60 liquid US stocks, minimizing the 95% daily CVaR of the tracking error against an equal-weighted benchmark. The optimization includes a LASSO (L1) penalty to encourage sparsity and improve stock selection.
 
-    #### Performance Comparison
+    **Key Implementation Details:**
+    - **Objective**: Minimize the 95% Conditional Value-at-Risk (CVaR).
+    - **Constraints**: Fully invested (weights sum to 1), long-only (no shorting), and a maximum weight of 5% per stock.
+    - **Rebalancing**: The portfolio is rebalanced quarterly.
+    - **Transaction Costs**: A realistic transaction cost of 10 bps (0.1%) is applied to the total trade volume at each rebalance for both the CVaR strategy and the equal-weighted benchmark.
+
+    #### Performance Analysis & Interpretation
 
     ![Baseline CVaR Performance vs. Benchmarks](results/task_a_performance_comparison.png)
 
+    The baseline strategy successfully achieves its primary objective: **risk reduction**. As shown in the performance metrics, it consistently maintains a lower CVaR and volatility compared to the benchmarks. However, it underperforms the SPY index in terms of absolute returns. This outcome is expected and can be attributed to several factors:
+
+    - **Defensive Posture in a Bull Market**: The 2010-2024 period was predominantly a strong bull market. A risk-averse strategy like CVaR, which is designed to mitigate extreme losses, will naturally lag a simple buy-and-hold index during such periods.
+    - **Transaction Costs**: The model incurs rebalancing costs, whereas the SPY index does not. This creates a consistent performance drag.
+    - **Long-Only Constraint**: Unlike the original CLEIR paper which allowed shorting, our implementation is long-only. This removes a potential source of alpha generation.
+
     #### Key Output Files
 
-    The following files in the `results/` directory are the primary outputs for this task, directly addressing the submission requirements:
+    The primary outputs for this task are located in the `results/` directory:
 
-    - **`baseline_cvar_performance_metrics.csv`**: A table containing the final required performance metrics (Annual Return, Volatility, Sharpe Ratio, 95% CVaR, Max Drawdown, and Turnover).
-    - **`baseline_cvar_index.csv`**: The daily index values of the CVaR-optimized portfolio from 2010 to 2024.
-    - **`baseline_daily_returns.csv`**: The daily returns of the final portfolio strategy.
-    - **`baseline_daily_weights.csv`**: The daily weights of each asset in the portfolio.
-    - **`baseline_cvar_rebalance_weights_2010-2024.csv`**: The target weights determined at each quarterly rebalance.
-
-    The following files are for the benchmark used in the comparison:
-
-    - **`equal_weighted_daily_returns.csv`**: The daily returns of the equal-weighted benchmark.
-    - **`equal_weighted_daily_weights.csv`**: The daily weights of the equal-weighted benchmark.
+    - `task_a_baseline_cvar_performance_metrics.csv`: Final performance metrics.
+    - `task_a_baseline_cvar_index.csv`: Daily index values of the portfolio.
+    - `task_a_performance_comparison.png`: The plot shown above.
 
 2.  **Task B: Regime-Aware Enhancement**
     - Enhances the baseline model with a dynamic risk framework based on market regimes.

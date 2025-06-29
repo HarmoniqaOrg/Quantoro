@@ -145,7 +145,11 @@ def plot_task_a_comparison(all_returns: dict, daily_weights: pd.DataFrame = None
     """
     logging.info("Generating Task A performance comparison plot...")
 
-    returns_df = all_returns.get("baseline")
+    returns_path = RESULTS_DIR / "task_a_consolidated_daily_returns.csv"
+    if not returns_path.exists():
+        logging.warning(f"Consolidated returns file not found at {returns_path}. Skipping Task A plot.")
+        return
+    returns_df = pd.read_csv(returns_path, index_col=0, parse_dates=True)
     if returns_df is None:
         logging.warning("Baseline returns data not found. Skipping Task A plot.")
         return
@@ -165,7 +169,7 @@ def plot_task_a_comparison(all_returns: dict, daily_weights: pd.DataFrame = None
 
     # --- Load Data & Calculate Metrics ---
     # Load baseline CVaR weights for its turnover calculation
-    baseline_weights_path = RESULTS_DIR / "baseline_daily_weights.csv"
+    baseline_weights_path = RESULTS_DIR / "task_a_baseline_daily_weights.csv"
     if baseline_weights_path.exists():
         baseline_daily_weights = pd.read_csv(baseline_weights_path, index_col=0, parse_dates=True)
     else:
@@ -173,7 +177,7 @@ def plot_task_a_comparison(all_returns: dict, daily_weights: pd.DataFrame = None
         baseline_daily_weights = pd.DataFrame()
 
     # Load Equal-Weighted benchmark returns
-    ew_returns_path = RESULTS_DIR / "equal_weighted_daily_returns.csv"
+    ew_returns_path = RESULTS_DIR / "task_a_equal_weighted_daily_returns.csv"
     if ew_returns_path.exists():
         ew_returns = pd.read_csv(ew_returns_path, index_col=0, parse_dates=True).squeeze("columns")
         plot_df["Equal-Weighted Benchmark"] = ew_returns.reindex(plot_df.index).fillna(0)
@@ -185,7 +189,7 @@ def plot_task_a_comparison(all_returns: dict, daily_weights: pd.DataFrame = None
     benchmark_returns = plot_df["SPY Benchmark"]
 
     # 1. Baseline CVaR Metrics (from canonical saved file)
-    baseline_metrics_path = RESULTS_DIR / "baseline_cvar_performance_metrics.csv"
+    baseline_metrics_path = RESULTS_DIR / "task_a_baseline_cvar_performance_metrics.csv"
     if baseline_metrics_path.exists():
         # Load the canonical metrics to ensure consistency
         saved_metrics = pd.read_csv(baseline_metrics_path, index_col=0, header=0).squeeze("columns")
@@ -207,7 +211,7 @@ def plot_task_a_comparison(all_returns: dict, daily_weights: pd.DataFrame = None
     # 3. Equal-Weighted Benchmark Metrics
     ew_turnover_numeric = np.nan
     try:
-        ew_weights_path = RESULTS_DIR / "equal_weighted_daily_weights.csv"
+        ew_weights_path = RESULTS_DIR / "task_a_equal_weighted_daily_weights.csv"
         ew_target_weights = pd.read_csv(ew_weights_path, index_col=0, parse_dates=True)
         price_path = RESULTS_DIR / "sp500_prices_2010_2024.csv"
         prices = pd.read_csv(price_path, index_col=0, parse_dates=True)
@@ -381,7 +385,7 @@ def plot_regime_analysis(returns_df: pd.DataFrame, price_df: pd.DataFrame):
 
     plt.xlabel("Date", fontsize=12)
     plt.tight_layout(rect=(0, 0, 1, 0.96))
-    save_path = RESULTS_DIR / "regime_analysis_plot.png"
+    save_path = RESULTS_DIR / "task_b_regime_analysis_plot.png"
     plt.savefig(save_path)
     plt.close()
     logging.info(f"Saved regime analysis plot to {save_path}")

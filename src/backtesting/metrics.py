@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import empyrical as ep
+import logging
 from typing import Callable, Tuple
 import os
 import logging
@@ -36,6 +37,34 @@ def bootstrap_metric(
     upper_bound = np.percentile(bootstrapped_metrics, (1 - alpha / 2) * 100)
 
     return lower_bound, upper_bound
+
+
+def _calculate_cvar_corrected(returns: pd.Series, alpha: float = 0.95) -> float:
+    """
+    Calculates Conditional Value at Risk (CVaR) based on feedback.
+    Returns a positive value representing the expected loss.
+    """
+    if not isinstance(returns, pd.Series):
+        returns = pd.Series(returns)
+
+    # Ensure we are working with returns, not prices
+    if returns.max() > 1.0:
+        logging.warning("Input data looks like prices, not returns. Calculating pct_change.")
+        returns = returns.pct_change().dropna()
+
+    var_threshold = np.percentile(returns, (1 - alpha) * 100)
+    tail_losses = returns[returns <= var_threshold]
+
+    if tail_losses.empty:
+        return 0.0
+
+    cvar = tail_losses.mean()
+
+    # Validate the expected range. A daily 95% CVaR for equities is typically > 1%.
+    if abs(cvar) < 0.01 and abs(cvar) > 1e-6:  # Avoid warning for zero CVaR
+        logging.warning(f"Abnormally low CVaR calculated: {cvar:.6f}. Should be around -2% to -5%.")
+
+    return -cvar  # Return as a positive value for loss
 
 
 def calculate_annual_turnover(daily_weights: pd.DataFrame) -> float:
@@ -83,7 +112,7 @@ def calculate_raw_metrics(
     metrics["Max Drawdown"] = ep.max_drawdown(portfolio_returns)
     metrics["Calmar Ratio"] = ep.calmar_ratio(portfolio_returns)
     metrics["Sortino Ratio"] = ep.sortino_ratio(portfolio_returns)
-    metrics["95% CVaR"] = ep.conditional_value_at_risk(portfolio_returns, 0.95)
+    metrics["95% CVaR"] = _calculate_cvar_corrected(portfolio_returns, 0.95)
 
     if daily_weights is not None:
         metrics["Annual Turnover"] = calculate_annual_turnover(daily_weights)

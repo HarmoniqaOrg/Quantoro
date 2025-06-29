@@ -151,7 +151,7 @@ def main():
     daily_returns_net.to_csv(returns_path, header=True)
     logging.info(f"Saved daily returns to {returns_path}")
 
-    regime_probs_path = os.path.join(RESULTS_DIR, "regime_probabilities.csv")
+    regime_probs_path = os.path.join(RESULTS_DIR, "task_b_regime_probabilities.csv")
     regime_probs.loc[EVALUATION_START_DATE:].to_csv(regime_probs_path)
     logging.info(f"Saved regime probabilities for evaluation period to {regime_probs_path}")
 

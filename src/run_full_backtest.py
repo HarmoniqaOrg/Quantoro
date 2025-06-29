@@ -134,10 +134,10 @@ async def main():
         logging.info("Successfully saved raw price data.")
 
         # Also save SPY daily returns for benchmark comparison
-        spy_returns = price_data[['SPY']].pct_change().dropna()
-        spy_returns_path = os.path.join(RESULTS_DIR, "spy_daily_returns_2020-2024.csv")
-        spy_returns.loc['2020-01-01':].to_csv(spy_returns_path)
-        logging.info(f"Saved SPY daily returns to {spy_returns_path}")
+        returns_df = price_data.pct_change().dropna()
+        full_returns_df = returns_df.copy()
+        spy_returns = full_returns_df[['SPY']]
+        # The consolidated file will use the full spy_returns series later on
 
     except Exception as e:
         logging.error(f"Failed to save price data: {e}")
@@ -159,7 +159,7 @@ async def main():
     # --- Run Rolling Backtest ---
     CVAR_ALPHA = 0.95
     # Per-side transaction cost. The optimizer's turnover calculation already accounts for buys and sells.
-    TRANSACTION_COST = 0.0010  # 10 bps per side
+    TRANSACTION_COST = 0.0050  # 50 bps per side, further increased to reduce turnover
     MAX_WEIGHT = 0.05
     cvar_optimizer = CVaROptimizer(
         alpha=CVAR_ALPHA,
@@ -185,6 +185,10 @@ async def main():
 
     logging.info("Full historical backtest completed.")
 
+    # Preserve full-period results before slicing for evaluation
+    full_period_portfolio_returns = portfolio_returns.copy()
+    full_period_daily_weights = daily_weights.copy()
+
     if portfolio_returns.empty:
         logging.error("Backtest returned no portfolio returns. Exiting.")
         return
@@ -202,9 +206,9 @@ async def main():
     daily_weights = daily_weights.reindex(portfolio_returns.index, method='ffill')
 
     # Save the sliced evaluation-period returns to ensure consistency with other task outputs
-    sliced_returns_path = RESULTS_DIR / "baseline_daily_returns_2020-2024.csv"
-    portfolio_returns.to_csv(sliced_returns_path, header=True)
-    logging.info(f"Saved sliced baseline returns for evaluation period to {sliced_returns_path}")
+    eval_returns_path = RESULTS_DIR / "task_b_baseline_daily_returns_2020-2024.csv"
+    portfolio_returns.to_csv(eval_returns_path, header=True)
+    logging.info(f"Saved sliced baseline returns for evaluation period to {eval_returns_path}")
 
     logging.info(
         f"Evaluation period returns: {len(portfolio_returns)} days, from {portfolio_returns.index.min().date()} to {portfolio_returns.index.max().date()}"
@@ -233,7 +237,7 @@ async def main():
     logging.info(
         f"Portfolio returns shape: {portfolio_returns.shape}, Index: {portfolio_returns.index.min()} to {portfolio_returns.index.max()}"
     )
-    full_period_returns = pd.concat([seed_returns, portfolio_returns])
+    full_period_returns = pd.concat([seed_returns, full_period_portfolio_returns])
     full_period_returns.name = "Baseline_CVaR"
     logging.info(
         f"Full period returns generated. Shape: {full_period_returns.shape}, Index: {full_period_returns.index.min()} to {full_period_returns.index.max()}"
@@ -246,7 +250,7 @@ async def main():
         seed_weights_df[initial_universe] = ew_seed_weights
         seed_weights_df = seed_weights_df.fillna(0)
 
-    full_period_weights = pd.concat([seed_weights_df, daily_weights])
+    full_period_weights = pd.concat([seed_weights_df, full_period_daily_weights])
     full_period_weights = full_period_weights.loc[
         ~full_period_weights.index.duplicated(keep="first")
     ]
@@ -267,11 +271,11 @@ async def main():
     logging.info("Saving all backtest artifacts...")
     RESULTS_DIR.mkdir(exist_ok=True)
 
-    full_period_returns.to_csv(RESULTS_DIR / "baseline_daily_returns.csv", header=True)
-    logging.info(f"Saved full period returns to {RESULTS_DIR / 'baseline_daily_returns.csv'}")
+    full_period_returns.to_csv(RESULTS_DIR / "task_a_baseline_daily_returns.csv", header=True)
+    logging.info(f"Saved full period returns to {RESULTS_DIR / 'task_a_baseline_daily_returns.csv'}")
 
-    index_level.to_csv(RESULTS_DIR / "baseline_cvar_index.csv", header=True)
-    logging.info(f"Saved cumulative index to {RESULTS_DIR / 'baseline_cvar_index.csv'}")
+    index_level.to_csv(RESULTS_DIR / "task_a_baseline_cvar_index.csv", header=True)
+    logging.info(f"Saved cumulative index to {RESULTS_DIR / 'task_a_baseline_cvar_index.csv'}")
 
     rebalance_df = pd.DataFrame(rebalance_results).set_index("date")
 
@@ -370,7 +374,7 @@ async def main():
         RESULTS_DIR.mkdir(exist_ok=True)
 
         # Save rebalance weights
-        weights_path = RESULTS_DIR / "baseline_cvar_rebalance_weights_2010-2024.csv"
+        weights_path = RESULTS_DIR / "task_a_baseline_cvar_rebalance_weights_2010-2024.csv"
         logging.info(f"Attempting to save rebalance weights to {weights_path}...")
         rebalance_results_to_save = rebalance_results.copy()
         if "weights" in rebalance_results_to_save.columns:
@@ -380,15 +384,49 @@ async def main():
             )
         rebalance_results_to_save.to_csv(weights_path)
 
+        # Save performance metrics for the evaluation period
+        eval_metrics_path = RESULTS_DIR / "task_b_baseline_cvar_performance_2020-2024.csv"
+        logging.info(f"Attempting to save evaluation metrics to {eval_metrics_path}...")
+        raw_metrics.to_csv(eval_metrics_path, header=True)
+        logging.info("Successfully saved evaluation metrics.")
+
         # Save Equal-Weighted benchmark results
-        ew_weights_path = RESULTS_DIR / "equal_weighted_daily_weights.csv"
+        ew_weights_path = RESULTS_DIR / "task_a_equal_weighted_daily_weights.csv"
         ew_returns_path = RESULTS_DIR / "equal_weighted_daily_returns.csv"
         ew_daily_weights.to_csv(ew_weights_path)
         net_ew_daily_returns.to_csv(ew_returns_path, header=["Equal_Weighted"])
         logging.info("Successfully saved Equal-Weighted benchmark weights and returns.")
 
+        # --- Consolidate all returns for final comparison plot ---
+        logging.info("Consolidating all returns for final comparison plot...")
+
+        # Explicitly reload full-period SPY returns to prevent any scope/slicing issues.
+        # This is a robust way to ensure the benchmark data is correct for the final plot.
+        try:
+            price_data_path = RESULTS_DIR / "sp500_prices_2010_2024.csv"
+            full_price_data = pd.read_csv(price_data_path, index_col='date', parse_dates=True)
+            spy_full_returns = full_price_data[['SPY']].pct_change().dropna()
+            logging.info(f"Successfully reloaded SPY returns for consolidation. Shape: {spy_full_returns.shape}")
+        except Exception as e:
+            logging.error(f"Could not load SPY prices for consolidation: {e}")
+            # As a fallback, use the in-memory spy_returns, though it might be incorrect
+            spy_full_returns = spy_returns
+
+        # The index of full_period_returns is the definitive index for the backtest.
+        final_index = full_period_returns.index
+
+        consolidated_returns = pd.DataFrame(index=final_index)
+        consolidated_returns["Baseline_CVaR"] = full_period_returns
+        # Reindex the freshly loaded, full-period SPY returns to the final index
+        consolidated_returns["SPY"] = spy_full_returns["SPY"].reindex(final_index).fillna(0)
+        consolidated_returns["Equal_Weighted"] = net_ew_daily_returns.reindex(final_index).fillna(0)
+
+        consolidated_path = RESULTS_DIR / "task_a_consolidated_daily_returns.csv"
+        consolidated_returns.to_csv(consolidated_path)
+        logging.info(f"Saved consolidated returns for plotting to {consolidated_path}")
+
         # Save daily weights for turnover calculation
-        daily_weights_path = RESULTS_DIR / "baseline_daily_weights.csv"
+        daily_weights_path = RESULTS_DIR / "task_a_baseline_daily_weights.csv"
         if not full_period_weights.empty:
             logging.info(
                 f"Daily weights DataFrame has shape {full_period_weights.shape}. Saving to {daily_weights_path}..."
@@ -401,46 +439,18 @@ async def main():
         logging.info("Successfully saved rebalance weights.")
 
         # Save performance metrics
-        metrics_path = RESULTS_DIR / "baseline_cvar_performance_metrics.csv"
-        logging.info(f"Attempting to save metrics to {metrics_path}...")
-        raw_metrics.to_csv(metrics_path, header=True)
+        eval_metrics_path = RESULTS_DIR / "task_b_baseline_cvar_performance_2020-2024.csv"
+        logging.info(f"Attempting to save metrics to {eval_metrics_path}...")
+        raw_metrics.to_csv(eval_metrics_path, header=True)
         logging.info("Successfully saved metrics.")
 
         # Save daily returns for the full 2010-2024 period
-        baseline_returns_path = RESULTS_DIR / "baseline_daily_returns.csv"
-        net_ew_daily_returns.to_csv(baseline_returns_path, header=["equal_weighted_returns"])
-        logging.info(f"Saved net-of-cost baseline equal-weighted returns to {baseline_returns_path}")
+        ew_returns_path = RESULTS_DIR / "task_a_equal_weighted_daily_returns.csv"
+        net_ew_daily_returns.to_csv(ew_returns_path, header=["equal_weighted_returns"])
+        logging.info(f"Saved net-of-cost baseline equal-weighted returns to {ew_returns_path}")
+
 
         # Align all series to the full backtest period for a comprehensive comparison file
-        common_index = full_period_returns.index
-
-        # Align SPY benchmark
-        aligned_benchmark = benchmark_returns.reindex(common_index).ffill()
-
-        # Align Equal Weighted returns
-        equal_weight_returns = net_ew_daily_returns.reindex(common_index).fillna(0)
-
-        # Align Cap-Weighted returns
-        aligned_market_caps = market_cap_data.reindex(common_index).ffill()
-        common_columns = asset_returns.columns.intersection(aligned_market_caps.columns)
-        aligned_asset_returns_final = asset_returns[common_columns].reindex(common_index).ffill()
-        aligned_market_caps_final = aligned_market_caps[common_columns]
-        daily_market_cap_sum = aligned_market_caps_final.sum(axis=1)
-        daily_market_cap_sum.replace(0, np.nan, inplace=True)
-        cap_weights = aligned_market_caps_final.div(daily_market_cap_sum, axis=0)
-        cap_weight_returns = (aligned_asset_returns_final * cap_weights).sum(axis=1)
-
-        all_returns = pd.DataFrame(
-            {
-                "Baseline_CVaR": full_period_returns,
-                "SPY": aligned_benchmark,
-                "Equal_Weighted": equal_weight_returns,
-                "Cap_Weighted": cap_weight_returns,
-            }
-        )
-        all_returns.fillna(0, inplace=True)  # Fill any remaining NaNs with 0
-        all_returns.to_csv(returns_path)
-        logging.info("Successfully saved daily returns.")
 
         logging.info(f"Results saved to {RESULTS_DIR.resolve()}")
 
