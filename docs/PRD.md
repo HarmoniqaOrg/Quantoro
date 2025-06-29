@@ -1,42 +1,71 @@
 # Product Requirements Document - Quantoro
 
-## Project Overview
-Implementation of CVaR-LASSO Enhanced Index Replication (CLEIR) with ML enhancements for eToro Alpha Pods assignment.
+## 1. Project Overview
+This document outlines the final product requirements, design decisions, and outcomes for the **Quantoro** project. The goal was to implement and evaluate a series of quantitative investment strategies, starting with a baseline CVaR optimization and progressing to more advanced models incorporating market regimes and machine learning-driven alpha signals, as per the eToro Alpha Pods assignment.
 
-## Current Sprint: Project Setup
-- **Objective**: Initialize project structure and development environment
-- **Success Criteria**: All files created, dependencies installed, initial commit pushed
-- **Design Decisions**: 
-  - Using CVXPy for optimization (proven CVaR support)
-  - PyTorch for ML models (better transformer support)
-  - Async architecture for data fetching (FMP rate limits)
+---
 
-## Architecture Decisions Log
-- **2024-01-XX**: Selected 60 most liquid S&P 100 stocks to balance diversification and liquidity
-- **2024-01-XX**: Chose quarterly rebalancing to minimize transaction costs while maintaining responsiveness
+## 2. Core Strategy Requirements
 
-## Technical Specifications
-- **CVaR Confidence Level**: 95% (α = 0.95)
-- **Max Position Size**: 5%
-- **Transaction Costs**: 10 bps per side
-- **Rebalancing**: Quarterly
-- **Lookback Window**: 252 trading days
-- **2025-06-25**: Replaced the `pytickersymbols` library with a hardcoded list of 60 tickers. **Reason**: The library provided an unstable list containing non-common stock tickers (e.g., preferred shares), causing silent failures in the data loading pipeline. A fixed list ensures reproducibility and stability.
-- **2025-06-25**: Enhanced the data loader (`FmpDataLoader`) to handle individual ticker API failures gracefully using `asyncio.gather(return_exceptions=True)` instead of failing the entire batch.
-- **2025-06-25**: Switched the default CVXPY solver from `ECOS` to `SCS` to resolve "solver not installed" errors and improve out-of-the-box compatibility.
-- **2025-06-25**: Implemented a fallback mechanism in the rolling backtester to hold previous weights if an optimization step fails, preventing the backtest from crashing and ensuring continuity.
-- **2025-06-26**: Designed and implemented an alpha-aware optimization strategy. **Components**:
-    - **Data Source**: Financial Modeling Prep (FMP) for alternative data signals (analyst recommendations, insider trading).
-    - **Signal Processing**: A `SignalProcessor` class normalizes and combines raw signals into a single composite alpha score per asset.
-    - **Optimization**: The `AlphaAwareCVaROptimizer` modifies the core CVaR objective function to `Minimize(CVaR - alpha_factor * PortfolioAlpha)`, creating a dual-objective to balance risk minimization with alpha maximization.
+The project successfully implemented three distinct strategies:
 
-## 6. Success Metrics
+- **Task A: Baseline CVaR Optimization**: Implement the CVaR optimization methodology from the CLEIR paper to replicate an equal-weight benchmark while minimizing tail risk (95% CVaR).
+- **Task B: Regime-Aware Enhancement**: Enhance the baseline model with a dynamic risk framework. The model must detect market regimes (e.g., "Risk-On" vs. "Risk-Off") and adjust its risk-taking (CVaR constraints, penalties) accordingly.
+- **Task C: Hybrid ML Alpha Model**: Integrate alternative data and machine learning to generate alpha signals. The optimizer's objective function must be modified to simultaneously minimize CVaR and maximize exposure to these ML-generated alpha scores.
 
-- **Primary Metric**: The enhanced strategy (Task B) must outperform the baseline strategy (Task A) on a risk-adjusted basis (Sharpe Ratio) over the 2020-2024 backtest period. **(Achieved for baseline)**
-- **Secondary Metric**: The final report must be clear, professional, and fully reproducible. **(In Progress)**
+---
 
-## 7. Final Project Status
+## 3. Final Technical Specifications
+
+The following parameters were standardized across all backtests to ensure comparability:
+
+- **Universe**: A fixed list of 60 liquid S&P 100 stocks.
+- **Backtest Period**: January 2010 - December 2024.
+- **Rebalancing Frequency**: Quarterly.
+- **Lookback Window**: 252 trading days (1 year).
+- **CVaR Confidence Level (α)**: 95% (default).
+- **Max Position Weight**: 7% (default, dynamically adjusted in regime model).
+- **Transaction Costs**: 10 bps (0.10%) per transaction.
+- **Optimization Solver**: `SCS` (used across all `cvxpy` optimizations for stability).
+
+---
+
+## 4. Key Design & Architecture Decisions
+
+This log summarizes the key technical and design decisions made throughout the project lifecycle.
+
+- **Universe Selection**: Replaced the volatile `pytickersymbols` library with a hardcoded list of 60 liquid tickers.
+  - **Reason**: Ensured backtest reproducibility and stability by removing non-common stock tickers and API lookup failures.
+
+- **Data Fetching**: Implemented an asynchronous data loader using `aiohttp` and `asyncio`.
+  - **Reason**: Efficiently handled API rate limits from Financial Modeling Prep (FMP) and sped up data acquisition. API failures for individual tickers are now handled gracefully without halting the entire process.
+
+- **Solver Standardization**: Selected `SCS` as the default solver for all `cvxpy` optimizations.
+  - **Reason**: `SCS` provided the best balance of stability and out-of-the-box compatibility, resolving runtime errors encountered with other solvers like `ECOS`.
+
+- **Backtest Engine Robustness**: The rolling backtester was enhanced with a fallback mechanism.
+  - **Reason**: If an optimization step fails for a given period, the engine now holds the previous period's weights instead of crashing. This ensures the backtest runs to completion.
+
+- **Regime-Aware Model Design**: An `EnsembleRegimeDetector` was built, combining a trend-following (SMA) model and a volatility (Mean Reversion Speed) model.
+  - **Reason**: The ensemble approach produces a more robust, continuous "Risk-Off" probability, avoiding binary switching and allowing the optimizer to adjust its risk parameters smoothly.
+
+- **Hybrid ML Alpha Model Design**: A dual-objective `AlphaAwareCVaROptimizer` was implemented.
+  - **Reason**: The optimizer's objective function `Minimize(CVaR - λ * PortfolioAlpha)` effectively balances the competing goals of minimizing tail risk and maximizing exposure to ML-generated alpha signals. The `λ` parameter controls the trade-off.
+
+---
+
+## 5. Success Metrics & Final Outcomes
+
+- **Primary Goal**: Outperform the baseline strategy (Task A) on a risk-adjusted basis (Sharpe Ratio).
+  - **Outcome**: **Achieved.** Both the Regime-Aware (B) and Hybrid ML (C) models delivered higher Sharpe Ratios and absolute returns than the baseline. The Hybrid model was the top performer.
+
+- **Secondary Goal**: Deliver a clear, professional, and fully reproducible project.
+  - **Outcome**: **Achieved.** The project includes a `Makefile` for one-command execution, comprehensive documentation, and clean, modular code.
+
+---
+
+## 6. Final Project Status
 
 **Status: Complete & Ready for Submission**
 
-All tasks outlined in the assignment—Baseline CVaR (A), Regime-Aware Enhancement (B), and Hybrid ML Alpha (C)—have been successfully implemented, debugged, and backtested. All solver-related issues have been resolved. The project documentation has been updated to reflect the final results, and a functional `Makefile` has been created for easy reproducibility. The project is now complete and ready for final report generation and submission.
+All tasks outlined in the assignment—Baseline CVaR (A), Regime-Aware Enhancement (B), and Hybrid ML Alpha (C)—have been successfully implemented, debugged, and backtested. All technical hurdles, including solver issues and data pipeline failures, have been resolved. The project documentation has been updated to reflect the final results, and a functional `Makefile` has been created for easy reproducibility. The project is now complete and ready for final report generation and submission.

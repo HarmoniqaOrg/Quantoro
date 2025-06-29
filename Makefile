@@ -16,17 +16,17 @@ run-all: run-baseline run-regime run-hybrid
 # Run Task A: Baseline CVaR Backtest
 run-baseline:
 	@echo "--- Running Task A: Baseline CVaR Backtest ---"
-	python src/run_full_backtest.py
+	python -m src.run_full_backtest
 
 # Run Task B: Regime-Aware CVaR Backtest
 run-regime:
 	@echo "--- Running Task B: Regime-Aware CVaR Backtest ---"
-	python src/run_regime_aware_backtest.py
+	python -m src.run_regime_aware_backtest
 
 # Run Task C: Hybrid ML Alpha Backtest
 run-hybrid:
 	@echo "--- Running Task C: Hybrid ML Alpha Backtest ---"
-	python src/run_hybrid_model_backtest.py
+	python -m src.run_hybrid_model_backtest
 
 # Clean up generated results
 clean:
@@ -38,6 +38,6 @@ clean:
 # Generate the final report
 report: run-all
 	@echo "--- Consolidating results and generating final report ---"
-	python src/reporting/consolidate_results.py
-	python src/reporting/generate_final_report.py
+	python -m src.reporting.consolidate_results
+	python -m src.reporting.generate_final_report
 	@echo "--- Final report generated successfully --- "

@@ -25,8 +25,27 @@ The final **Hybrid Regime-Aware Alpha Model** delivered robust performance, succ
 This project develops and backtests three distinct portfolio optimization strategies:
 
 1.  **Task A: Baseline CVaR Optimization**
-    - Implements the CVaR optimization methodology as described in the CLEIR paper.
-    - Minimizes the 95% CVaR of the tracking error against an equal-weight benchmark, rebalancing quarterly.
+
+    This task implements the baseline CVaR optimization strategy reproduced from the CLEIR paper as specified in the assignment. The model optimizes a long-only portfolio of 60 liquid US stocks, minimizing the 95% daily CVaR while adhering to constraints (fully invested, no shorting, max 5% weight per stock). The portfolio is rebalanced quarterly, and transaction costs of 10 bps are applied.
+
+    #### Performance Comparison
+
+    ![Baseline CVaR Performance vs. Benchmarks](results/task_a_performance_comparison.png)
+
+    #### Key Output Files
+
+    The following files in the `results/` directory are the primary outputs for this task, directly addressing the submission requirements:
+
+    - **`baseline_cvar_performance_metrics.csv`**: A table containing the final required performance metrics (Annual Return, Volatility, Sharpe Ratio, 95% CVaR, Max Drawdown, and Turnover).
+    - **`baseline_cvar_index.csv`**: The daily index values of the CVaR-optimized portfolio from 2010 to 2024.
+    - **`baseline_daily_returns.csv`**: The daily returns of the final portfolio strategy.
+    - **`baseline_daily_weights.csv`**: The daily weights of each asset in the portfolio.
+    - **`baseline_cvar_rebalance_weights_2010-2024.csv`**: The target weights determined at each quarterly rebalance.
+
+    The following files are for the benchmark used in the comparison:
+
+    - **`equal_weighted_daily_returns.csv`**: The daily returns of the equal-weighted benchmark.
+    - **`equal_weighted_daily_weights.csv`**: The daily weights of the equal-weighted benchmark.
 
 2.  **Task B: Regime-Aware Enhancement**
     - Enhances the baseline model with a dynamic risk framework based on market regimes.
@@ -104,11 +123,11 @@ The easiest way to run the backtests is by using the provided `Makefile`.
     make run-hybrid
     ```
 
-Alternatively, you can run the scripts directly:
+Alternatively, you can run the scripts directly using Python's module flag (`-m`), which is the recommended approach:
 ```bash
-python src/run_full_backtest.py
-python src/run_regime_aware_backtest.py
-python src/run_hybrid_model_backtest.py
+python -m src.run_full_backtest
+python -m src.run_regime_aware_backtest
+python -m src.run_hybrid_model_backtest
 ```
 
 ### Generating the Final Report
@@ -116,7 +135,17 @@ python src/run_hybrid_model_backtest.py
 After running the backtests, you can generate the final PDF report, which includes performance analysis and visualizations:
 
 ```bash
-python src/reporting/generate_final_report.py
+make report
+```
+
+This command first consolidates results from all backtests and then generates `report.pdf`.
+
+### Cleaning Up Results
+
+To remove all generated CSV and PNG files from the `results/` directory, run:
+
+```bash
+make clean
 ```
 
 ---

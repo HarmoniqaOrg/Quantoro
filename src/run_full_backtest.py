@@ -106,15 +106,20 @@ async def main():
     processor = DataProcessor()
 
     all_tickers = UNIVERSE_TICKERS + [BENCHMARK_TICKER]
-    logging.info(
-        f"Fetching price data for {len(all_tickers)} tickers from {START_DATE} to {END_DATE}..."
-    )
-    price_data = await loader.get_multiple_tickers_data(
-        all_tickers, start_date=START_DATE, end_date=END_DATE
-    )
-    market_cap_data = await loader.get_multiple_tickers_market_cap(
-        UNIVERSE_TICKERS, start_date=START_DATE, end_date=END_DATE
-    )
+    
+    try:
+        logging.info(
+            f"Fetching price data for {len(all_tickers)} tickers from {START_DATE} to {END_DATE}..."
+        )
+        price_data = await loader.get_multiple_tickers_data(
+            all_tickers, start_date=START_DATE, end_date=END_DATE
+        )
+        market_cap_data = await loader.get_multiple_tickers_market_cap(
+            UNIVERSE_TICKERS, start_date=START_DATE, end_date=END_DATE
+        )
+    except Exception as e:
+        logging.error(f"CRITICAL: Failed during asynchronous data fetching: {e}", exc_info=True)
+        return
 
     # --- Save Price Data ---
     # This is needed by other scripts like the alpha backtest
@@ -151,7 +156,7 @@ async def main():
         lasso_penalty=1.5,  # As per CLEIR paper - promotes sparsity
         transaction_cost=TRANSACTION_COST,
         max_weight=MAX_WEIGHT,
-        solver="ECOS",
+        solver="SCS",
     )
     rolling_optimizer = RollingCVaROptimizer(
         optimizer=cvar_optimizer,
@@ -177,7 +182,59 @@ async def main():
         logging.error("Backtest returned no portfolio returns. Exiting.")
         return
 
-    # --- Performance Analysis ---
+    # --- Final Processing: Seeding, Cost Application, and Index Generation ---
+    logging.info("Backtest method finished. Starting final processing...")
+    logging.info(f"Portfolio returns received: {len(portfolio_returns)} days, from {portfolio_returns.index.min()} to {portfolio_returns.index.max()}")
+
+    # 1. Seed the backtest for the pre-rebalance period (2010 to first rebalance)
+    logging.info("Seeding backtest for the initial period...")
+    first_rebalance_date = pd.to_datetime(rebalance_results.iloc[0]["date"])
+    seed_period_returns = asset_returns.loc[BACKTEST_START_DATE:first_rebalance_date]
+    
+    initial_universe = rebalance_results.iloc[0]["universe"]
+    ew_seed_weights = pd.Series(1.0 / len(initial_universe), index=initial_universe)
+    
+    seed_returns = (seed_period_returns[initial_universe] * ew_seed_weights).sum(axis=1)
+    seed_returns = seed_returns.loc[seed_returns.index < first_rebalance_date]
+    logging.info(f"Generated {len(seed_returns)} days of seed returns.")
+
+    # 2. Combine seed returns with the cost-adjusted backtest returns
+    logging.info("Combining seed returns with main backtest returns...")
+    logging.info(f"Seed returns shape: {seed_returns.shape}, Index: {seed_returns.index.min()} to {seed_returns.index.max()}")
+    logging.info(f"Portfolio returns shape: {portfolio_returns.shape}, Index: {portfolio_returns.index.min()} to {portfolio_returns.index.max()}")
+    full_period_returns = pd.concat([seed_returns, portfolio_returns])
+    full_period_returns.name = "Baseline_CVaR"
+    logging.info(f"Full period returns generated. Shape: {full_period_returns.shape}, Index: {full_period_returns.index.min()} to {full_period_returns.index.max()}")
+
+    # 4. Create a corresponding daily weights dataframe for the full period
+    logging.info("Generating full period weights...")
+    seed_weights_df = pd.DataFrame(0, index=seed_returns.index, columns=UNIVERSE_TICKERS)
+    if not seed_weights_df.empty:
+        seed_weights_df[initial_universe] = ew_seed_weights
+        seed_weights_df = seed_weights_df.fillna(0)
+
+    full_period_weights = pd.concat([seed_weights_df, daily_weights])
+    full_period_weights = full_period_weights.loc[~full_period_weights.index.duplicated(keep='first')]
+    full_period_weights = full_period_weights.reindex(full_period_returns.index, method='ffill').fillna(0)
+    logging.info(f"Full period weights generated. Shape: {full_period_weights.shape}, Index: {full_period_weights.index.min()} to {full_period_weights.index.max()}")
+
+    # 3. Generate Cumulative Index
+    logging.info("Generating cumulative index...")
+    index_level = (1 + full_period_returns.fillna(0)).cumprod() * 100
+    index_level.iloc[0] = 100
+    logging.info("Cumulative index generated.")
+
+    # --- Save all results ---
+    logging.info("Saving all backtest artifacts...")
+    results_path = Path("../../results")
+    results_path.mkdir(exist_ok=True)
+
+    full_period_returns.to_csv(results_path / "baseline_daily_returns.csv", header=True)
+    logging.info(f"Saved full period returns to {results_path / 'baseline_daily_returns.csv'}")
+
+    index_level.to_csv(results_path / "baseline_cvar_index.csv", header=True)
+    logging.info(f"Saved cumulative index to {results_path / 'baseline_cvar_index.csv'}")
+
     rebalance_df = pd.DataFrame(rebalance_results).set_index("date")
 
     # --- Calculate Quarterly-Rebalanced Equal-Weighted Benchmark (Net of Costs) ---
@@ -186,6 +243,24 @@ async def main():
 
     rebalance_dates = rebalance_df.index
     all_benchmark_weights = []
+
+    # Manually create weights for the initial seed period (2010 to first rebalance)
+    if not rebalance_dates.empty:
+        first_rebalance_date_ew = rebalance_dates[0]
+        initial_universe_ew = rebalance_df.loc[first_rebalance_date_ew, "universe"]
+        num_assets_initial = len(initial_universe_ew)
+
+        if num_assets_initial > 0:
+            ew_seed_weights_val = pd.Series(1.0 / num_assets_initial, index=initial_universe_ew)
+            seed_period_dates = asset_returns.loc[START_DATE:first_rebalance_date_ew].index
+            # Exclude the rebalance date itself from the seed period
+            seed_period_dates = seed_period_dates[seed_period_dates < first_rebalance_date_ew]
+
+            if not seed_period_dates.empty:
+                seed_weights_df = pd.DataFrame(index=seed_period_dates, columns=UNIVERSE_TICKERS).fillna(0)
+                seed_weights_df[initial_universe_ew] = ew_seed_weights_val
+                all_benchmark_weights.append(seed_weights_df)
+                logging.info(f"Created seed weights for Equal-Weighted benchmark for {len(seed_period_dates)} days.")
 
     for i in range(len(rebalance_dates)):
         start_period = rebalance_dates[i]
@@ -262,9 +337,9 @@ async def main():
 
         # Save daily weights for turnover calculation
         daily_weights_path = results_path / "baseline_daily_weights.csv"
-        if not daily_weights.empty:
-            logging.info(f"Daily weights DataFrame has shape {daily_weights.shape}. Saving to {daily_weights_path}...")
-            daily_weights.to_csv(daily_weights_path)
+        if not full_period_weights.empty:
+            logging.info(f"Daily weights DataFrame has shape {full_period_weights.shape}. Saving to {daily_weights_path}...")
+            full_period_weights.to_csv(daily_weights_path)
             logging.info(f"Successfully saved daily weights to {daily_weights_path}")
         else:
             logging.error("Daily weights DataFrame is empty. Cannot save to file.")
@@ -281,41 +356,34 @@ async def main():
         returns_path = results_path / "baseline_daily_returns.csv"
         logging.info(f"Attempting to save daily returns to {returns_path}...")
 
-        # Calculate Equal Weight returns
-        equal_weight_returns = asset_returns.loc[portfolio_returns.index].mean(axis=1)
+        # Align all series to the full backtest period for a comprehensive comparison file
+        common_index = full_period_returns.index
 
-        # Calculate Cap-Weighted returns
-        # First, align both asset returns and market caps to the actual backtest period (portfolio_returns.index)
-        # This ensures we are working with the same dates and tickers that have returns.
-        common_index = portfolio_returns.index
-        aligned_asset_returns = asset_returns.loc[common_index]
+        # Align SPY benchmark
+        aligned_benchmark = benchmark_returns.reindex(common_index).ffill()
+
+        # Align Equal Weighted returns
+        equal_weight_returns = asset_returns.mean(axis=1).reindex(common_index).ffill()
+
+        # Align Cap-Weighted returns
         aligned_market_caps = market_cap_data.reindex(common_index).ffill()
-
-        # Ensure both dataframes share the exact same columns to prevent misalignments
-        common_columns = aligned_asset_returns.columns.intersection(aligned_market_caps.columns)
-        aligned_asset_returns = aligned_asset_returns[common_columns]
-        aligned_market_caps = aligned_market_caps[common_columns]
-
-        # Now, calculate weights and returns on perfectly aligned data
-        daily_market_cap_sum = aligned_market_caps.sum(axis=1)
-        # Avoid division by zero for days with no market cap data
+        common_columns = asset_returns.columns.intersection(aligned_market_caps.columns)
+        aligned_asset_returns_final = asset_returns[common_columns].reindex(common_index).ffill()
+        aligned_market_caps_final = aligned_market_caps[common_columns]
+        daily_market_cap_sum = aligned_market_caps_final.sum(axis=1)
         daily_market_cap_sum.replace(0, np.nan, inplace=True)
-        cap_weights = aligned_market_caps.div(daily_market_cap_sum, axis=0)
-        cap_weight_returns = (aligned_asset_returns * cap_weights).sum(axis=1)
+        cap_weights = aligned_market_caps_final.div(daily_market_cap_sum, axis=0)
+        cap_weight_returns = (aligned_asset_returns_final * cap_weights).sum(axis=1)
 
         all_returns = pd.DataFrame(
             {
-                "Baseline_CVaR": portfolio_returns,
+                "Baseline_CVaR": full_period_returns,
                 "SPY": aligned_benchmark,
                 "Equal_Weighted": equal_weight_returns,
                 "Cap_Weighted": cap_weight_returns,
             }
         )
-
-        # Fill NaNs in the cap-weighted series with 0 (implying a 0% return for that day)
-        # This prevents dropna() from truncating the entire dataset if cap data is missing early on.
-        all_returns["Cap_Weighted"].fillna(0, inplace=True)
-        all_returns.dropna(inplace=True)  # Clean any remaining NaNs from other columns
+        all_returns.fillna(0, inplace=True)  # Fill any remaining NaNs with 0
         all_returns.to_csv(returns_path)
         logging.info("Successfully saved daily returns.")
 

@@ -451,15 +451,44 @@ class RollingCVaROptimizer:
         daily_index = returns.loc[weights_df.index.min():].index
         daily_weights_df = weights_df.reindex(daily_index, method="ffill").fillna(0.0)
         
-        # 5. Calculate Portfolio Returns
+        # 5. Calculate Portfolio Returns with Transaction Costs
         aligned_returns, aligned_weights = returns.align(daily_weights_df, join='inner', axis=0)
         portfolio_returns = (aligned_weights * aligned_returns).sum(axis=1)
+
+        # Deduct transaction costs on rebalance days based on turnover from drifted weights
+        rebalance_dates_in_period = rebalance_df.index.intersection(portfolio_returns.index)
+        
+        for date in rebalance_dates_in_period:
+            loc = aligned_weights.index.get_loc(date)
+            if loc == 0:
+                # For the first rebalance, turnover is calculated against an initial EW portfolio.
+                # This is already handled inside the optimizer. We use that value directly.
+                turnover = rebalance_df.loc[date, "turnover"]
+            else:
+                # For subsequent rebalances, calculate turnover against price-drifted weights
+                prev_trading_day = aligned_weights.index[loc - 1]
+                weights_before_rebalance = aligned_weights.loc[prev_trading_day]
+                returns_on_prev_day = aligned_returns.loc[prev_trading_day]
+
+                # Calculate drifted weights at end of previous day
+                drifted_numerator = weights_before_rebalance * (1 + returns_on_prev_day)
+                drifted_weights = drifted_numerator / drifted_numerator.sum()
+
+                # Target weights for the current rebalance day
+                target_weights = aligned_weights.loc[date]
+
+                # Align and calculate turnover
+                aligned_target, aligned_drifted = target_weights.align(drifted_weights, join='outer', fill_value=0.0)
+                turnover = (aligned_target - aligned_drifted).abs().sum()
+
+            # Calculate and apply cost
+            cost = turnover * self.optimizer.transaction_cost
+            portfolio_returns.loc[date] -= cost
+            logger.info(f"Applied transaction cost on {date}: {cost:.4f} (Turnover: {turnover:.2%})")
 
         rebalance_df.reset_index(inplace=True)
 
         return rebalance_df, portfolio_returns, daily_weights_df
-
-        return results_df, portfolio_returns, daily_weights_df
 
     def _get_rebalance_dates(self, dates: pd.DatetimeIndex, lookback: int) -> pd.DatetimeIndex:
         """Get rebalancing dates, ensuring enough lookback data exists."""

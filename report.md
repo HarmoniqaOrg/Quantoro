@@ -51,16 +51,40 @@ The table below summarizes the out-of-sample performance (2010-2024) of the thre
 
 | Metric                | Baseline CVaR (A)     | Regime-Aware CVaR (B)   | Hybrid ML Alpha (C)   |
 |-----------------------|-----------------------|-------------------------|-----------------------|
-| **Annual Return**     | 12.33%                | 16.18%                  | **21.75%**            |
-| **Annual Volatility** | 17.36%                | 17.18%                  | **16.55%**            |
-| **Sharpe Ratio**      | 0.76                  | 0.96                    | **1.27**              |
-| **Max Drawdown**      | -35.23%               | -27.96%                 | **-23.11%**           |
+| **Annual Return**     | 11.94%                | 16.18%                  | **21.75%**            |
+| **Annual Volatility** | 17.34%                | 17.18%                  | **16.55%**            |
+| **Sharpe Ratio**      | 0.74                  | 0.96                    | **1.27**              |
+| **Max Drawdown**      | -35.98%               | -27.96%                 | **-23.11%**           |
 
-![Comprehensive Performance Comparison](results/baseline_performance_comparison.png)
+![Comprehensive Performance Comparison](results/comprehensive_performance_comparison.png)
 
-### 4.2. Strategy Deep Dive
+### 4.2. Strategy Deep Dive & Task A Deliverables
 
-*   **Baseline vs. Regime-Aware (A vs. B):** The introduction of the regime-aware framework provided a clear improvement. By becoming more defensive during high-risk periods, the Regime-Aware model (Sharpe: 0.96) improved upon the Baseline's Sharpe Ratio (0.76) and significantly reduced the maximum drawdown from -35.23% to -27.96%. This demonstrates the value of dynamically adjusting risk posture.
+This section provides a detailed analysis of each strategy's performance and includes the specific deliverables required for Task A.
+
+#### Task A: Baseline CVaR Strategy
+
+As required by the assignment, this section details the results of the baseline CVaR model reproduced from the CLEIR paper.
+
+**Performance Plot:**
+The plot below compares the cumulative returns of the Baseline CVaR index against the equal-weighted benchmark over the full 2010-2024 period.
+
+![Baseline CVaR Performance vs. Benchmarks](results/task_a_performance_comparison.png)
+
+**Output Files for Verification:**
+To facilitate a thorough review, the following key output files for Task A are located in the `results/` directory. These files provide full transparency into the backtest execution and results.
+
+*   `baseline_cvar_performance_metrics.csv`: A table containing the final required performance metrics (Annual Return, Volatility, Sharpe Ratio, 95% CVaR, Max Drawdown, and Turnover).
+*   `baseline_cvar_index.csv`: The daily index values of the CVaR-optimized portfolio from 2010 to 2024.
+*   `baseline_daily_returns.csv`: The daily returns of the final portfolio strategy.
+*   `baseline_daily_weights.csv`: The daily weights of each asset in the portfolio.
+*   `baseline_cvar_rebalance_weights_2010-2024.csv`: The target weights determined at each quarterly rebalance.
+*   `equal_weighted_daily_returns.csv`: The daily returns of the equal-weighted benchmark.
+*   `equal_weighted_daily_weights.csv`: The daily weights of the equal-weighted benchmark.
+
+---
+
+*   **Baseline vs. Regime-Aware (A vs. B):** The introduction of the regime-aware framework provided a clear improvement. By becoming more defensive during high-risk periods, the Regime-Aware model (Sharpe: 0.96) improved upon the Baseline's Sharpe Ratio (0.74) and significantly reduced the maximum drawdown from -35.98% to -27.96%. This demonstrates the value of dynamically adjusting risk posture.
 *   **Regime-Aware vs. Hybrid ML Alpha (B vs. C):** The integration of the ML alpha model marked the most significant leap in performance. The Hybrid model (Sharpe: 1.27) substantially outperformed the Regime-Aware model (Sharpe: 0.96). This success is attributed to the ML model's ability to identify stocks with higher return potential, allowing the optimizer to not only manage risk but also to actively seek alpha. The combination of superior stock selection and dynamic risk management proved to be a powerful and effective strategy.
 
 ### 4.3. Interpretability

@@ -6,6 +6,7 @@ import os
 import logging
 from pathlib import Path
 from .utils import calculate_turnover, calculate_turnover_with_drift
+import matplotlib.dates as mdates
 from ..backtesting.metrics import calculate_raw_metrics
 import dataframe_image as dfi
 
@@ -112,6 +113,11 @@ def plot_performance_comparison(all_returns: dict):
         )
     ax2.legend(fontsize=10)
     ax2.grid(True, which="both", linestyle="--", linewidth=0.5)
+
+    # --- X-axis Formatting to explicitly show years ---
+    ax2.xaxis.set_major_locator(mdates.YearLocator())
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+    plt.setp(ax2.get_xticklabels(), rotation=0, ha='center')
 
     plt.xlabel("Date", fontsize=12)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
