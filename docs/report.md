@@ -43,7 +43,7 @@ Our starting point was a robust risk management system based on Conditional Valu
 
 ### 3.1. Methodology
 
-Recognizing that markets are not static, we enhanced our model to be adaptive. Using a Gaussian Mixture Model (GMM) trained on macroeconomic data (VIX, rates, etc.), the system identifies the prevailing market regime. It then dynamically adjusts its risk parameters—becoming more aggressive in calm markets and more defensive during volatility.
+Recognizing that markets are not static, we enhanced our model to be adaptive. We implemented a transparent `EnsembleRegimeDetector` that calculates a `risk_off_probability` by combining two distinct signals derived from SPY price action: a trend-following signal (based on Simple Moving Averages) and a mean-reversion speed indicator. The final probability is a weighted average of these signals, which is then smoothed with a 10-day moving average to reduce noise. This allows the optimizer to dynamically adjust its parameters—becoming more aggressive in calm, trending markets and more defensive during periods of volatility and trend exhaustion.
 
 ### 3.2. Performance & Analysis
 
