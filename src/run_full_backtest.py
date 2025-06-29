@@ -149,7 +149,7 @@ async def main():
 
     # --- Run Rolling Backtest ---
     CVAR_ALPHA = 0.95
-    TRANSACTION_COST = 0.001
+    TRANSACTION_COST = 0.002  # 0.20% (10 bps per side) 
     MAX_WEIGHT = 0.05
     cvar_optimizer = CVaROptimizer(
         alpha=CVAR_ALPHA,
@@ -316,7 +316,8 @@ async def main():
         logging.info("Finished applying quarterly transaction costs to benchmark.")
 
     # Ensure benchmark returns are aligned with portfolio returns for metric calculation
-    aligned_benchmark = benchmark_returns.reindex(portfolio_returns.index).ffill()
+    # Use the net-of-cost equal-weighted benchmark for a fair comparison
+    aligned_benchmark = net_ew_daily_returns.reindex(portfolio_returns.index).ffill()
     raw_metrics = calculate_raw_metrics(portfolio_returns, aligned_benchmark, daily_weights=daily_weights)
     display_metrics = format_metrics_for_display(raw_metrics, portfolio_returns)
 
@@ -340,7 +341,7 @@ async def main():
         ew_weights_path = results_path / "equal_weighted_daily_weights.csv"
         ew_returns_path = results_path / "equal_weighted_daily_returns.csv"
         ew_daily_weights.to_csv(ew_weights_path)
-        net_ew_daily_returns.to_csv(ew_returns_path)
+        net_ew_daily_returns.to_csv(ew_returns_path, header=["Equal_Weighted"])
         logging.info("Successfully saved Equal-Weighted benchmark weights and returns.")
 
         # Save daily weights for turnover calculation

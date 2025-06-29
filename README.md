@@ -130,6 +130,22 @@ python -m src.run_regime_aware_backtest
 python -m src.run_hybrid_model_backtest
 ```
 
+### Testing
+
+This project uses `pytest` for unit testing to ensure the reliability of key components, such as the CVaR optimizer. To run the tests, first ensure you have installed all the required packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+Then, run `pytest` from the root directory of the project:
+
+```bash
+pytest
+```
+
+The tests will automatically discover and run all test files (e.g., `tests/test_cvar_optimizer.py`) and report the results.
+
 ### Generating the Final Report
 
 After running the backtests, you can generate the final PDF report, which includes performance analysis and visualizations:
