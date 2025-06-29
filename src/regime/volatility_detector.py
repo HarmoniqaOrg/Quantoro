@@ -35,11 +35,17 @@ class VolatilityThresholdDetector:
         # Calculate rolling volatility to avoid using future data
         rolling_vol = returns.rolling(self.window).std()
 
-        # Use an expanding window to calculate the quantile, removing look-ahead bias
-        threshold = rolling_vol.expanding().quantile(self.quantile)
+        # Drop initial NaNs from the rolling calculation before proceeding
+        valid_rolling_vol = rolling_vol.dropna()
+
+        if valid_rolling_vol.empty:
+            return pd.Series(dtype=float)
+
+        # Use an expanding window on the valid data to calculate the threshold
+        threshold = valid_rolling_vol.expanding().quantile(self.quantile)
 
         # Risk-on (1) if volatility is below the threshold, risk-off (0) otherwise.
         # This correctly identifies periods of high volatility as "risk-off" (0).
-        risk_scores = (rolling_vol <= threshold).astype(float)
+        risk_scores = (valid_rolling_vol <= threshold).astype(float)
 
-        return risk_scores.dropna()
+        return risk_scores

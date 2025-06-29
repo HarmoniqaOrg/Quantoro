@@ -14,10 +14,11 @@
   - [x] Correctly applied transaction costs at each rebalance.
   - [x] Extended backtest to cover the full 2010-2024 period by seeding initial returns.
   - [x] Generated all required results, including a final cumulative index.
-- [x] **Task B: Regime-Aware Enhancement**
+- [x] **Task B: Regime-Aware Enhancement (Feedback Addressed)**
   - [x] Implemented `EnsembleRegimeDetector` using SMA and Volatility signals.
   - [x] Implemented `RegimeAwareCVaROptimizer` with dynamic parameter adjustment.
-  - [x] Backtested successfully and demonstrated improved risk-adjusted returns.
+  - [x] Addressed all evaluation feedback: fixed look-ahead bias, applied transaction costs, and generated a comparable baseline for 2020-2024.
+  - [x] Backtested successfully and analyzed results; found that the strategy did not outperform the baseline on a risk-adjusted basis.
 - [x] **Task C: Hybrid ML Alpha Model**
   - [x] Implemented data loader for FMP signals and ML model for alpha generation.
   - [x] Implemented `AlphaAwareCVaROptimizer` to integrate alpha scores.
@@ -31,6 +32,7 @@
   - [x] Resolved all dependency conflicts in `requirements.txt`.
   - [x] Fixed all linting (E402, F821, F841) and formatting issues.
   - [x] Ensured `make quality` passes cleanly.
+  - [x] Fixed all failing unit tests for Task B pipeline.
 
 ---
 

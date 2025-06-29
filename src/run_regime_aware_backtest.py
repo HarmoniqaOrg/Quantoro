@@ -198,7 +198,9 @@ def main():
 
     # Calculate and save metrics
     logging.info("Calculating performance metrics...")
-    raw_metrics = calculate_raw_metrics(final_returns, benchmark_returns)
+    raw_metrics = calculate_raw_metrics(
+        final_returns, benchmark_returns, daily_weights=weights_df
+    )
     metrics_path = os.path.join(RESULTS_DIR, "regime_aware_cvar_performance.csv")
     raw_metrics.to_csv(metrics_path, header=True)
     logging.info(f"Saved regime-aware metrics to {metrics_path}")
@@ -214,6 +216,11 @@ def main():
     returns_path = os.path.join(RESULTS_DIR, "regime_aware_daily_returns.csv")
     final_returns.to_csv(returns_path, header=True)
     logging.info(f"Saved daily returns to {returns_path}")
+
+    # Save regime probabilities for analysis
+    regime_probs_path = os.path.join(RESULTS_DIR, "regime_probabilities.csv")
+    regime_probs.to_csv(regime_probs_path)
+    logging.info(f"Saved regime probabilities to {regime_probs_path}")
 
     logging.info(f"Results saved to {RESULTS_DIR}")
     logging.info("--- Backtest Complete ---")

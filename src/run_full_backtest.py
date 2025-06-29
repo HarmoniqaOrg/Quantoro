@@ -339,7 +339,7 @@ async def main():
     # Use the net-of-cost equal-weighted benchmark for a fair comparison
     aligned_benchmark = net_ew_daily_returns.reindex(portfolio_returns.index).ffill()
     raw_metrics = calculate_raw_metrics(
-        portfolio_returns, aligned_benchmark, daily_weights=daily_weights
+        portfolio_returns, aligned_benchmark, daily_weights=full_period_weights
     )
     display_metrics = format_metrics_for_display(raw_metrics, portfolio_returns)
 
