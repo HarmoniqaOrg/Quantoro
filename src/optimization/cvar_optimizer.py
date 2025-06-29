@@ -593,109 +593,97 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
         current_weights: Optional[np.ndarray] = None,
         **kwargs,
     ) -> OptimizationResult:
-        alpha_scores = kwargs.get("alpha_scores")
-        if alpha_scores is None:
-            raise ValueError("alpha_scores are required for AlphaAwareCVaROptimizer")
         """
         Optimize portfolio to minimize CVaR and maximize alpha.
         """
+        alpha_scores = kwargs.get("alpha_scores")
+        if alpha_scores is None:
+            raise ValueError("alpha_scores are required for AlphaAwareCVaROptimizer")
+
+        # --- Data Preparation ---
+        returns = returns.fillna(0.0)
+        if benchmark_returns is not None:
+            benchmark_returns = benchmark_returns.fillna(0.0)
+
         n_assets = returns.shape[1]
         n_scenarios = returns.shape[0]
-
         R = returns.values
-
-        # Ensure all inputs are explicit 2D column vectors to avoid shape ambiguity
-        aligned_alpha = alpha_scores.reindex(returns.columns).fillna(0).values.reshape(-1, 1)
+        aligned_alpha = alpha_scores.reindex(returns.columns).fillna(0).values
 
         if benchmark_returns is None:
-            b = returns.mean(axis=1).values.reshape(-1, 1)
-        elif hasattr(benchmark_returns, "values"):
-            b = benchmark_returns.values.reshape(-1, 1)
+            b = returns.mean(axis=1).values
         else:
-            b = np.asarray(benchmark_returns).reshape(-1, 1)
+            b = benchmark_returns.values
 
-        # Define CVXPY variables as explicit 2D column vectors
-        w = cp.Variable((n_assets, 1))
-        z = cp.Variable((n_scenarios, 1))
+        # --- CVXPY Problem Definition ---
+        w = cp.Variable(n_assets)
+        z = cp.Variable(n_scenarios)
         zeta = cp.Variable()
 
-        tracking_error = cp.matmul(R, w) - b
+        tracking_error = (R @ w) - b
         cvar = zeta + (1.0 / ((1 - self.alpha) * n_scenarios)) * cp.sum(z)
 
-        # Use transpose for dot product with column vectors and sum the resulting (1,1) matrix to ensure it's a scalar expression
-        portfolio_alpha = cp.sum(cp.matmul(w.T, aligned_alpha))
+        # --- Objective Function Construction ---
+        objective_terms = [cvar]
+        # Add Alpha Term (negative for maximization)
+        objective_terms.append(-self.alpha_factor * (aligned_alpha @ w))
 
-        # Construct the objective function additively to create a simpler expression tree for the solver
-        objective = cvar - self.alpha_factor * portfolio_alpha
+        # Add Lasso Term
         if self.lasso_penalty > 0:
-            objective += self.lasso_penalty * cp.norm1(w)
+            objective_terms.append(self.lasso_penalty * cp.norm1(w))
+
+        # Add Transaction Cost Term
         if current_weights is not None:
-            current_weights_col = current_weights.reshape(-1, 1)
-            turnover = cp.sum(cp.abs(w - current_weights_col))
-            objective += self.transaction_cost * turnover
+            turnover = cp.sum(cp.abs(w - current_weights))
+            objective_terms.append(self.transaction_cost * turnover)
 
-        objective = cp.Minimize(objective)
+        objective = cp.Minimize(cp.sum(objective_terms))
 
-        # Use the simpler, more robust constraint formulation from the base class
+        # --- Constraints ---
         constraints = [
             z >= 0,
             z >= -tracking_error - zeta,
-            cp.sum(w) == 1,
+            cp.sum(w) == 1.0,
             w >= 0,
             w <= self.max_weight,
         ]
 
-        # Define and solve the CVXPY problem
-        problem = cp.Problem(cp.Minimize(objective), constraints)
-        # Use more robust solver settings to prevent failures on difficult data
-        solver_kwargs = {
-            "solver": "SCS",
-            "verbose": False,
-            "max_iters": 5000,  # Increased iterations
-            "eps": 1e-4,  # Slightly relaxed tolerance
-            "use_indirect": True,  # Can be more robust for ill-conditioned problems
-        }
-        problem.solve(**solver_kwargs)
+        problem = cp.Problem(objective, constraints)
 
-        if problem.status not in ["optimal", "optimal_inaccurate"] or w.value is None:
-            logger.warning(f"Optimization failed or weights are None. Status: {problem.status}")
-            return OptimizationResult(
-                weights=np.full(n_assets, np.nan),
-                status=problem.status,
-                cvar=np.nan,
-                portfolio_return=np.nan,
-                portfolio_volatility=np.nan,
-                tracking_error=np.nan,
-                turnover=np.nan,
-                solve_time=0.0,
-            )
+        # --- Solve Problem ---
+        try:
+            problem.solve(solver=self.solver, verbose=False)
+            if problem.status not in ["optimal", "optimal_inaccurate"] or w.value is None:
+                logger.warning(f"Solver {self.solver} failed with status: {problem.status}. Trying SCS.")
+                problem.solve(solver="SCS", verbose=False, max_iters=5000, eps=1e-4)
 
-        optimal_weights = w.value.flatten()  # Flatten for consistency in output
+            if problem.status not in ["optimal", "optimal_inaccurate"] or w.value is None:
+                logger.error(f"Optimization failed with all solvers. Status: {problem.status}")
+                return self._get_empty_result(n_assets, status=problem.status)
+
+        except Exception as e:
+            logger.error(f"CVXPY solver failed: {e}")
+            return self._get_empty_result(n_assets, status="solver_exception")
+
+        # --- Process Results ---
+        optimal_weights = w.value
         portfolio_ret_series = R @ optimal_weights
-        tracking_err_series = portfolio_ret_series - b.flatten()
-
-        if current_weights is not None:
-            turnover_val = np.sum(np.abs(optimal_weights - current_weights))
-        else:
-            turnover_val = 0.0
-
-        solve_time = (
-            problem.solver_stats.solve_time
-            if hasattr(problem, "solver_stats")
-            and hasattr(problem.solver_stats, "solve_time")
-            and problem.solver_stats.solve_time is not None
+        tracking_err_series = portfolio_ret_series - b
+        turnover_val = (
+            np.sum(np.abs(optimal_weights - current_weights))
+            if current_weights is not None
             else 0.0
         )
 
         return OptimizationResult(
             weights=optimal_weights,
-            status=problem.status,
             cvar=cvar.value,
             portfolio_return=np.mean(portfolio_ret_series),
             portfolio_volatility=np.std(portfolio_ret_series),
             tracking_error=np.std(tracking_err_series),
             turnover=turnover_val,
-            solve_time=solve_time,
+            status=problem.status,
+            solve_time=problem.solver_stats.solve_time or 0.0,
         )
 
 
