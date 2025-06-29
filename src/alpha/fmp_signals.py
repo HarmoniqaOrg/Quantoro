@@ -5,7 +5,7 @@ import asyncio
 import logging
 import json
 import time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -40,7 +40,7 @@ class FmpPremiumSignals:
         return os.path.join(self.cache_dir, filename)
 
     async def _fetch_signal(
-        self, session: aiohttp.ClientSession, endpoint: str, params: Dict[str, Any] = None
+        self, session: aiohttp.ClientSession, endpoint: str, params: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """
         Asynchronously fetches data for a single endpoint, using a cache to avoid repeated requests.
@@ -140,7 +140,7 @@ class FmpPremiumSignals:
             Dict[str, Dict[str, pd.DataFrame]]: A nested dictionary where the outer key is the ticker
                                                and the inner key is the signal type.
         """
-        all_signals = {}
+        all_signals: Dict[str, Dict[str, pd.DataFrame]] = {}
         semaphore = asyncio.Semaphore(concurrency_limit)
 
         async def fetch_with_semaphore(session, ticker):

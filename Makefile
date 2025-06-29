@@ -1,4 +1,4 @@
-.PHONY: install run-all run-baseline run-regime run-hybrid clean report
+.PHONY: install run-all run-baseline run-regime run-hybrid clean report quality format lint type-check
 
 # Default target
 all: run-all
@@ -40,4 +40,26 @@ report: run-all
 	@echo "--- Consolidating results and generating final report ---"
 	python -m src.reporting.consolidate_results
 	python -m src.reporting.generate_final_report
+	@echo "--- Final report generated successfully --- "
+
+# --- Code Quality ---
+
+# Run all quality checks
+quality: format lint type-check
+	@echo "--- Code quality checks completed ---"
+
+# Format code with Black
+format:
+	@echo "--- Formatting code with Black ---"
+	python -m black . --line-length 100
+
+# Lint with Ruff and apply auto-fixes
+lint:
+	@echo "--- Linting with Ruff ---"
+	python -m ruff check . --fix
+
+# Type check with MyPy
+type-check:
+	@echo "--- Type checking with MyPy ---"
+	python -m mypy src/ --ignore-missing-imports
 	@echo "--- Final report generated successfully --- "

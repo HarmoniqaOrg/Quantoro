@@ -5,23 +5,22 @@ This script runs a backtest of the CVaR optimization strategy enhanced with
 a dynamic, regime-aware parameter model.
 """
 
+import logging
 import os
 import sys
-import logging
+
 import numpy as np
 import pandas as pd
-import asyncio
 from dotenv import load_dotenv
 
 # Add project root to Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
-from src.data.loader import FmpDataLoader
-from src.data.processor import DataProcessor
-from src.optimization.cvar_optimizer import RegimeAwareCVaROptimizer
-from src.backtesting.metrics import calculate_raw_metrics, format_metrics_for_display
-from src.regime.ensemble_regime import EnsembleRegimeDetector
+from src.backtesting.metrics import calculate_raw_metrics, format_metrics_for_display  # noqa: E402
+from src.data.processor import DataProcessor  # noqa: E402
+from src.optimization.cvar_optimizer import RegimeAwareCVaROptimizer  # noqa: E402
+from src.regime.ensemble_regime import EnsembleRegimeDetector  # noqa: E402
 
 # --- Configuration ---
 LOG_LEVEL = logging.INFO

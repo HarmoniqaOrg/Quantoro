@@ -3,9 +3,7 @@ Ensemble regime detection combining SMA and MRS-GARCH approaches
 Implements findings from multiple papers for robust regime detection
 """
 
-import numpy as np
 import pandas as pd
-from typing import Tuple, Optional
 from .regime import SMARegimeDetector  # Original SMA detector
 from .volatility_detector import VolatilityThresholdDetector
 

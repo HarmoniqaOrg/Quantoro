@@ -1,6 +1,5 @@
 # src/reporting/generate_final_report.py
 
-import pandas as pd
 from markdown_pdf import MarkdownPdf, Section
 import os
 from .utils import read_file_content, format_metrics_table

@@ -1,14 +1,14 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 import os
 import sys
+
+import matplotlib.pyplot as plt
+import pandas as pd
 
 # Add project root to Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
 
-from src.regime.ensemble_regime import EnsembleRegimeDetector
+from src.regime.ensemble_regime import EnsembleRegimeDetector  # noqa: E402
 
 # --- Configuration ---
 RESULTS_DIR = os.path.join(project_root, "results")
@@ -31,7 +31,7 @@ def plot_regime_probabilities():
     print(f"Loading data from {DATA_FILE}")
     price_df = pd.read_csv(DATA_FILE, index_col=0, parse_dates=True)
     spy_prices = price_df[BENCHMARK_TICKER].loc[PLOT_START_DATE:PLOT_END_DATE]
-    returns_df = price_df.pct_change()
+    price_df.pct_change()
 
     # --- Generate Regime Probabilities ---
     print("Generating market regime probabilities...")

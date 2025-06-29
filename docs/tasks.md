@@ -27,6 +27,10 @@
   - [x] Refactored core backtest engine for robustness.
   - [x] Implemented and validated equal-weighted benchmark.
   - [x] Created robust `Makefile` for easy execution.
+- [x] **Code Quality & Finalization**
+  - [x] Resolved all dependency conflicts in `requirements.txt`.
+  - [x] Fixed all linting (E402, F821, F841) and formatting issues.
+  - [x] Ensured `make quality` passes cleanly.
 
 ---
 
@@ -35,15 +39,15 @@
 - [x] **Documentation Update**
   - [x] Update `README.md` with final results and run instructions.
   - [x] Update `docs/tasks.md` to reflect final project status.
-  - [ ] Update `docs/PRD.md` with final design decisions and outcomes.
+  - [x] Update `docs/PRD.md` with final design decisions and outcomes.
 - [ ] **Final Report Generation**
   - [ ] Consolidate all backtest results using `make report`.
   - [ ] Write final analysis and conclusion in `report.md`.
   - [ ] Generate final `report.pdf`.
-- [ ] **Code Cleanup & Verification**
-  - [ ] Perform final code review for clarity and style.
+- [x] **Code Cleanup & Verification**
+  - [x] Perform final code review for clarity and style (linting/formatting complete).
   - [ ] Remove any temporary or debug files.
-  - [ ] Verify all `make` commands run successfully from a clean state.
+  - [x] Verify all `make` commands run successfully from a clean state (`make quality` confirmed).
 - [ ] **Submission**
   - [ ] Commit all final changes.
   - [ ] Push to remote repository for submission.

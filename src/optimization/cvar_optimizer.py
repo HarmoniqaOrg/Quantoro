@@ -7,10 +7,11 @@ import logging
 import numpy as np
 import pandas as pd
 import cvxpy as cp
-from typing import Tuple, Optional, Dict, List
+from typing import List, Tuple, Optional, Dict
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class OptimizationResult:
@@ -80,6 +81,7 @@ class CVaROptimizer:
         returns: pd.DataFrame,
         benchmark_returns: Optional[pd.Series] = None,
         current_weights: Optional[np.ndarray] = None,
+        **kwargs,
     ) -> OptimizationResult:
         """
         Optimize portfolio to minimize CVaR of tracking error.
@@ -184,7 +186,9 @@ class CVaROptimizer:
                 tracking_error=np.std(tracking_err_series),
                 turnover=turnover_val,
                 status=problem.status,
-                solve_time=problem.solver_stats.solve_time or 0.0,
+                solve_time=problem.solver_stats.solve_time
+                if problem.solver_stats.solve_time is not None
+                else 0.0,
             )
 
             logger.info(f"Optimization complete: CVaR={result.cvar:.4f}, Status={result.status}")
@@ -355,11 +359,13 @@ class RollingCVaROptimizer:
         """
         # 1. Filter date range
         if start_date:
-            returns = returns.loc[start_date:]
-            benchmark_returns = benchmark_returns.loc[start_date:]
+            start_idx = returns.index.searchsorted(pd.to_datetime(start_date), side="left")
+            returns = returns.iloc[start_idx:]
+            benchmark_returns = benchmark_returns.iloc[start_idx:]
         if end_date:
-            returns = returns.loc[:end_date]
-            benchmark_returns = benchmark_returns.loc[:end_date]
+            end_idx = returns.index.searchsorted(pd.to_datetime(end_date), side="right")
+            returns = returns.iloc[:end_idx]
+            benchmark_returns = benchmark_returns.iloc[:end_idx]
 
         rebalance_dates = self._get_rebalance_dates(returns.index, self.lookback_window)
         if rebalance_dates.empty:
@@ -373,6 +379,9 @@ class RollingCVaROptimizer:
 
         for date in rebalance_dates:
             lookback_end_loc = returns.index.get_loc(date)
+            assert isinstance(
+                lookback_end_loc, int
+            ), "Index lookup for rebalance date did not return a single integer location."
             lookback_start_loc = max(0, lookback_end_loc - self.lookback_window)
             lookback_returns = returns.iloc[lookback_start_loc:lookback_end_loc]
             lookback_benchmark = benchmark_returns.iloc[lookback_start_loc:lookback_end_loc]
@@ -387,16 +396,20 @@ class RollingCVaROptimizer:
                 "benchmark_returns": lookback_benchmark,
                 "current_weights": current_weights,
             }
-            if regimes is not None and hasattr(self.optimizer, "_interpolate_params"): 
+            if regimes is not None and hasattr(self.optimizer, "_interpolate_params"):
                 regime_prob = regimes.asof(date)
                 optimizer_kwargs["regime_prob"] = regime_prob
 
-            if alpha_scores is not None and isinstance(self.optimizer, (AlphaAwareCVaROptimizer, RegimeAwareCVaROptimizer)):
+            if alpha_scores is not None and isinstance(
+                self.optimizer, (AlphaAwareCVaROptimizer, RegimeAwareCVaROptimizer)
+            ):
                 latest_alpha = alpha_scores.asof(date)
                 if isinstance(latest_alpha, pd.DataFrame):
                     latest_alpha = latest_alpha.iloc[-1]
-                
-                aligned_alpha, _ = latest_alpha.align(pd.Series(index=lookback_returns.columns), join='right', fill_value=0)
+
+                aligned_alpha, _ = latest_alpha.align(
+                    pd.Series(index=lookback_returns.columns), join="right", fill_value=0
+                )
                 optimizer_kwargs["alpha_scores"] = aligned_alpha
 
             # --- Run Optimization ---
@@ -415,10 +428,14 @@ class RollingCVaROptimizer:
                     "n_positions": (opt_result.weights > 1e-4).sum(),
                     "status": opt_result.status,
                 }
-                logger.info(f"Rebalanced on {date}: CVaR={opt_result.cvar:.4f}, Status={opt_result.status}")
+                logger.info(
+                    f"Rebalanced on {date}: CVaR={opt_result.cvar:.4f}, Status={opt_result.status}"
+                )
             else:
                 status = opt_result.status if opt_result else "failed"
-                logger.warning(f"Optimization failed on {date} with status {status}. Holding previous weights.")
+                logger.warning(
+                    f"Optimization failed on {date} with status {status}. Holding previous weights."
+                )
                 result_dict = {
                     "date": date,
                     "universe": lookback_returns.columns.tolist(),
@@ -445,19 +462,19 @@ class RollingCVaROptimizer:
         for date, row in rebalance_df.iterrows():
             weights_series = pd.Series(row["weights"], index=row["universe"], name=date)
             all_weights_rows.append(weights_series)
-        
+
         weights_df = pd.concat(all_weights_rows, axis=1).T.fillna(0.0)
-        
-        daily_index = returns.loc[weights_df.index.min():].index
+
+        daily_index = returns.loc[weights_df.index.min() :].index
         daily_weights_df = weights_df.reindex(daily_index, method="ffill").fillna(0.0)
-        
+
         # 5. Calculate Portfolio Returns with Transaction Costs
-        aligned_returns, aligned_weights = returns.align(daily_weights_df, join='inner', axis=0)
+        aligned_returns, aligned_weights = returns.align(daily_weights_df, join="inner", axis=0)
         portfolio_returns = (aligned_weights * aligned_returns).sum(axis=1)
 
         # Deduct transaction costs on rebalance days based on turnover from drifted weights
         rebalance_dates_in_period = rebalance_df.index.intersection(portfolio_returns.index)
-        
+
         for date in rebalance_dates_in_period:
             loc = aligned_weights.index.get_loc(date)
             if loc == 0:
@@ -478,13 +495,17 @@ class RollingCVaROptimizer:
                 target_weights = aligned_weights.loc[date]
 
                 # Align and calculate turnover
-                aligned_target, aligned_drifted = target_weights.align(drifted_weights, join='outer', fill_value=0.0)
+                aligned_target, aligned_drifted = target_weights.align(
+                    drifted_weights, join="outer", fill_value=0.0
+                )
                 turnover = (aligned_target - aligned_drifted).abs().sum()
 
             # Calculate and apply cost
             cost = turnover * self.optimizer.transaction_cost
             portfolio_returns.loc[date] -= cost
-            logger.info(f"Applied transaction cost on {date}: {cost:.4f} (Turnover: {turnover:.2%})")
+            logger.info(
+                f"Applied transaction cost on {date}: {cost:.4f} (Turnover: {turnover:.2%})"
+            )
 
         rebalance_df.reset_index(inplace=True)
 
@@ -497,7 +518,7 @@ class RollingCVaROptimizer:
             start=dates.min(), end=dates.max(), freq=self.rebalance_frequency
         )
 
-        valid_rebalance_dates = []
+        valid_rebalance_dates: List[pd.Timestamp] = []
         for date in resampled_dates:
             # Find the location of the last trading day on or before the period end.
             # searchsorted finds the insertion point, so -1 gives the prior date's location.
@@ -566,11 +587,13 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
     def optimize(
         self,
         returns: pd.DataFrame,
-        alpha_scores: pd.Series,
         benchmark_returns: Optional[pd.Series] = None,
         current_weights: Optional[np.ndarray] = None,
-        regime_prob: Optional[float] = None,  # Add for compatibility with engine
+        **kwargs,
     ) -> OptimizationResult:
+        alpha_scores = kwargs.get("alpha_scores")
+        if alpha_scores is None:
+            raise ValueError("alpha_scores are required for AlphaAwareCVaROptimizer")
         """
         Optimize portfolio to minimize CVaR and maximize alpha.
         """
@@ -656,7 +679,9 @@ class AlphaAwareCVaROptimizer(CVaROptimizer):
 
         solve_time = (
             problem.solver_stats.solve_time
-            if hasattr(problem, "solver_stats") and hasattr(problem.solver_stats, "solve_time")
+            if hasattr(problem, "solver_stats")
+            and hasattr(problem.solver_stats, "solve_time")
+            and problem.solver_stats.solve_time is not None
             else 0.0
         )
 
@@ -733,6 +758,7 @@ class RegimeAwareCVaROptimizer(CVaROptimizer):
         current_weights: Optional[np.ndarray] = None,
         regime_prob: Optional[float] = None,
         alpha_scores: Optional[pd.Series] = None,  # For compatibility
+        **kwargs,
     ) -> OptimizationResult:
         """
         Optimize with dynamic parameters based on continuous regime score.

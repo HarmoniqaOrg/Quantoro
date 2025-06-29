@@ -2,27 +2,29 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import os
 import logging
 from pathlib import Path
 from .utils import calculate_turnover, calculate_turnover_with_drift
 import matplotlib.dates as mdates
 from ..backtesting.metrics import calculate_raw_metrics
-import dataframe_image as dfi
 
 # --- Configuration & Styling ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
 
-# Set a professional and consistent style for all plots
-sns.set_theme(style="whitegrid", palette="deep", font_scale=1.1)
-plt.rcParams["figure.dpi"] = 300
-plt.rcParams["savefig.dpi"] = 300
-plt.rcParams["font.family"] = "sans-serif"
-plt.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
+
+def setup_plotting_style():
+    """Sets a professional and consistent style for all plots."""
+    sns.set_theme(style="whitegrid", palette="deep", font_scale=1.1)
+    plt.rcParams["figure.dpi"] = 300
+    plt.rcParams["savefig.dpi"] = 300
+    plt.rcParams["font.family"] = "sans-serif"
+    plt.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
 
 
 def save_metrics_df_as_image(csv_path: Path, output_path: Path):
+    import dataframe_image as dfi
+
     """Loads a metrics DataFrame from a CSV and saves it as a styled PNG image."""
     try:
         metrics_df = pd.read_csv(csv_path, index_col=0)
@@ -59,14 +61,22 @@ def plot_performance_comparison(all_returns: dict):
     # Join other strategies
     if "regime_aware" in all_returns:
         regime_df = all_returns["regime_aware"]
-        regime_col = "Regime_Aware_CVaR" if "Regime_Aware_CVaR" in regime_df.columns else regime_df.columns[0]
-        returns_df = returns_df.join(regime_df[[regime_col]].rename(columns={regime_col: "Regime_Aware_CVaR"}))
+        regime_col = (
+            "Regime_Aware_CVaR"
+            if "Regime_Aware_CVaR" in regime_df.columns
+            else regime_df.columns[0]
+        )
+        returns_df = returns_df.join(
+            regime_df[[regime_col]].rename(columns={regime_col: "Regime_Aware_CVaR"})
+        )
 
     if "hybrid" in all_returns:
         hybrid_df = all_returns["hybrid"]
         hybrid_col = "Hybrid_Model" if "Hybrid_Model" in hybrid_df.columns else hybrid_df.columns[0]
-        returns_df = returns_df.join(hybrid_df[[hybrid_col]].rename(columns={hybrid_col: "Hybrid_Model"}))
-    
+        returns_df = returns_df.join(
+            hybrid_df[[hybrid_col]].rename(columns={hybrid_col: "Hybrid_Model"})
+        )
+
     returns_df.dropna(inplace=True)
 
     plot_map = {
@@ -116,11 +126,11 @@ def plot_performance_comparison(all_returns: dict):
 
     # --- X-axis Formatting to explicitly show years ---
     ax2.xaxis.set_major_locator(mdates.YearLocator())
-    ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
-    plt.setp(ax2.get_xticklabels(), rotation=0, ha='center')
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    plt.setp(ax2.get_xticklabels(), rotation=0, ha="center")
 
     plt.xlabel("Date", fontsize=12)
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.tight_layout(rect=(0, 0, 1, 0.96))
     # Save plot directly to the results directory as requested
     save_path = RESULTS_DIR / "baseline_performance_comparison.png"
     plt.savefig(save_path)
@@ -174,10 +184,21 @@ def plot_task_a_comparison(all_returns: dict, daily_weights: pd.DataFrame = None
     raw_metrics_data = {}
     benchmark_returns = plot_df["SPY Benchmark"]
 
-    # 1. Baseline CVaR Metrics
-    baseline_turnover = calculate_turnover(baseline_daily_weights)
-    baseline_metrics = calculate_raw_metrics(plot_df["Baseline CVaR (A)"], benchmark_returns)
-    raw_metrics_data["Baseline CVaR (A)"] = {**baseline_metrics, "Annual Turnover": baseline_turnover}
+    # 1. Baseline CVaR Metrics (from canonical saved file)
+    baseline_metrics_path = RESULTS_DIR / "baseline_cvar_performance_metrics.csv"
+    if baseline_metrics_path.exists():
+        # Load the canonical metrics to ensure consistency
+        saved_metrics = pd.read_csv(baseline_metrics_path, index_col=0, header=0).squeeze("columns")
+        raw_metrics_data["Baseline CVaR (A)"] = saved_metrics
+    else:
+        # Fallback to on-the-fly calculation if the file is missing
+        logging.warning(f"Metrics file not found: {baseline_metrics_path}. Calculating on the fly.")
+        baseline_turnover = calculate_turnover(baseline_daily_weights)
+        baseline_metrics = calculate_raw_metrics(plot_df["Baseline CVaR (A)"], benchmark_returns)
+        raw_metrics_data["Baseline CVaR (A)"] = {
+            **baseline_metrics,
+            "Annual Turnover": baseline_turnover,
+        }
 
     # 2. SPY Benchmark Metrics
     spy_metrics = calculate_raw_metrics(plot_df["SPY Benchmark"], benchmark_returns)
@@ -198,12 +219,15 @@ def plot_task_a_comparison(all_returns: dict, daily_weights: pd.DataFrame = None
 
     if "Equal-Weighted Benchmark" in plot_df:
         ew_metrics = calculate_raw_metrics(plot_df["Equal-Weighted Benchmark"], benchmark_returns)
-        raw_metrics_data["Equal-Weighted Benchmark"] = {**ew_metrics, "Annual Turnover": ew_turnover_numeric}
+        raw_metrics_data["Equal-Weighted Benchmark"] = {
+            **ew_metrics,
+            "Annual Turnover": ew_turnover_numeric,
+        }
 
     # --- Format Metrics for Display ---
     formatted_metrics = {}
     for name, metrics in raw_metrics_data.items():
-        turnover = metrics.get('Annual Turnover', np.nan)
+        turnover = metrics.get("Annual Turnover", np.nan)
         turnover_str = f"{turnover:.2%}" if pd.notna(turnover) else "N/A"
 
         formatted_metrics[name] = {
@@ -270,7 +294,7 @@ def plot_task_a_comparison(all_returns: dict, daily_weights: pd.DataFrame = None
             cell.set_text_props(weight="bold")
 
     plt.xlabel("Date", fontsize=12)
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.tight_layout(rect=(0, 0, 1, 0.96))
     save_path = RESULTS_DIR / "task_a_performance_comparison.png"
     plt.savefig(save_path)
     plt.close()
@@ -356,7 +380,7 @@ def plot_regime_analysis(returns_df: pd.DataFrame, price_df: pd.DataFrame):
     ax2.legend(lines + lines2, labels + labels2, loc="upper left", fontsize=10)
 
     plt.xlabel("Date", fontsize=12)
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.tight_layout(rect=(0, 0, 1, 0.96))
     save_path = RESULTS_DIR / "regime_analysis_plot.png"
     plt.savefig(save_path)
     plt.close()
@@ -478,6 +502,8 @@ def generate_metrics_table(returns_df: pd.DataFrame):
     # Save styled table as an image
     table_path = RESULTS_DIR / "consolidated_metrics_table.png"
     try:
+        import dataframe_image as dfi
+
         dfi.export(styled_df, str(table_path))
         logging.info(f"Saved styled metrics table to {table_path}")
     except Exception as e:

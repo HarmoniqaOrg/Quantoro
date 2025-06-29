@@ -1,8 +1,11 @@
 import pandas as pd
-import os
 from pathlib import Path
 import logging
-from .generate_report_visuals import plot_performance_comparison, plot_task_a_comparison
+from .generate_report_visuals import (
+    plot_performance_comparison,
+    plot_task_a_comparison,
+    setup_plotting_style,
+)
 
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -49,6 +52,9 @@ def main():
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     logging.info("--- Starting Report Visualization Generation ---")
+
+    # Set up the professional plotting style before generating any plots
+    setup_plotting_style()
 
     # Load all returns data
     logging.info("Loading all available returns data...")

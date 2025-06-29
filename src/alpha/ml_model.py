@@ -3,6 +3,7 @@ This module defines the MLAlphaModel and associated data preparation utilities.
 """
 
 import logging
+from typing import Any, Dict, List, Optional
 import pandas as pd
 import numpy as np
 import lightgbm as lgb
@@ -94,11 +95,12 @@ class MLAlphaModel:
     Generates alpha signals using a LightGBM model.
     """
 
-    def __init__(self, lookahead_period: int = 63, lgbm_params: dict = None):
+    def __init__(self, lookahead_period: int = 63, lgbm_params: Optional[Dict[Any, Any]] = None):
         self.lookahead_period = lookahead_period
-        self.model = None
+        self.model: Optional[lgb.LGBMRegressor] = None
         self.scaler = StandardScaler()
-        self.feature_names = []
+        self.feature_names: List[str] = []
+        self.lgbm_params: Dict[Any, Any]
 
         if lgbm_params is None:
             self.lgbm_params = {

@@ -8,7 +8,7 @@ backtests. It manages the timeline, data slicing, rebalancing, and portfolio sta
 import pandas as pd
 import numpy as np
 import logging
-from typing import Optional, Generator, Tuple
+from typing import Optional, Generator, Tuple, Dict, Any
 
 from src.optimization.cvar_optimizer import CVaROptimizer, OptimizationResult
 
@@ -120,11 +120,18 @@ class BacktestEngine:
             alpha_scores = alpha_scores.reindex(returns_window.columns).fillna(0)
 
         try:
+            # Prepare optional arguments for the optimizer to be passed as kwargs
+            # This makes the call compatible with the base optimizer's signature for mypy
+            optimizer_kwargs: Dict[str, Any] = {}
+            if alpha_scores is not None:
+                optimizer_kwargs["alpha_scores"] = alpha_scores
+            if regime_prob is not None:
+                optimizer_kwargs["regime_prob"] = regime_prob
+
             result = self.optimizer.optimize(
                 returns=returns_window,
                 current_weights=self.current_weights,
-                alpha_scores=alpha_scores,
-                regime_prob=regime_prob,
+                **optimizer_kwargs,
             )
 
             if result and result.status in ["optimal", "optimal_inaccurate"]:

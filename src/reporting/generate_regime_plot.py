@@ -1,13 +1,14 @@
-import pandas as pd
-import matplotlib.pyplot as plt
 import os
 import sys
+
+import matplotlib.pyplot as plt
+import pandas as pd
 
 # Add project root to Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
 
-from src.regime.ensemble_regime import EnsembleRegimeDetector
+from src.regime.ensemble_regime import EnsembleRegimeDetector  # noqa: E402
 
 RESULTS_DIR = "results"
 PRICE_DATA_PATH = os.path.join(RESULTS_DIR, "sp500_prices_2010_2024.csv")

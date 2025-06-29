@@ -1,10 +1,20 @@
-import os
+import asyncio
 import logging
+import os
+import sys
+from pathlib import Path
+
+import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-import asyncio
-from pathlib import Path
-import numpy as np
+
+# Adjust path to import from src
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.backtesting.metrics import calculate_raw_metrics, format_metrics_for_display
+from src.data.loader import FmpDataLoader
+from src.data.processor import DataProcessor
+from src.optimization.cvar_optimizer import CVaROptimizer, RollingCVaROptimizer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -12,15 +22,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 # Load environment variables from .env file
 load_dotenv()
 
-# Adjust path to import from src
-import sys
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from src.data.loader import FmpDataLoader
-from src.data.processor import DataProcessor
-from src.optimization.cvar_optimizer import CVaROptimizer, RollingCVaROptimizer
-from src.backtesting.metrics import calculate_raw_metrics, format_metrics_for_display
+# Define the results directory at the module level so it can be patched for testing
+RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 
 
 async def main():
@@ -106,7 +109,7 @@ async def main():
     processor = DataProcessor()
 
     all_tickers = UNIVERSE_TICKERS + [BENCHMARK_TICKER]
-    
+
     try:
         logging.info(
             f"Fetching price data for {len(all_tickers)} tickers from {START_DATE} to {END_DATE}..."
@@ -123,9 +126,8 @@ async def main():
 
     # --- Save Price Data ---
     # This is needed by other scripts like the alpha backtest
-    results_path = Path("results")
-    results_path.mkdir(exist_ok=True)
-    price_data_path = results_path / "sp500_prices_2010_2024.csv"
+    RESULTS_DIR.mkdir(exist_ok=True)
+    price_data_path = RESULTS_DIR / "sp500_prices_2010_2024.csv"
     try:
         logging.info(f"Saving raw price data to {price_data_path}...")
         price_data.to_csv(price_data_path)
@@ -149,7 +151,7 @@ async def main():
 
     # --- Run Rolling Backtest ---
     CVAR_ALPHA = 0.95
-    TRANSACTION_COST = 0.002  # 0.20% (10 bps per side) 
+    TRANSACTION_COST = 0.002  # 0.20% (10 bps per side)
     MAX_WEIGHT = 0.05
     cvar_optimizer = CVaROptimizer(
         alpha=CVAR_ALPHA,
@@ -184,27 +186,35 @@ async def main():
 
     # --- Final Processing: Seeding, Cost Application, and Index Generation ---
     logging.info("Backtest method finished. Starting final processing...")
-    logging.info(f"Portfolio returns received: {len(portfolio_returns)} days, from {portfolio_returns.index.min()} to {portfolio_returns.index.max()}")
+    logging.info(
+        f"Portfolio returns received: {len(portfolio_returns)} days, from {portfolio_returns.index.min()} to {portfolio_returns.index.max()}"
+    )
 
     # 1. Seed the backtest for the pre-rebalance period (2010 to first rebalance)
     logging.info("Seeding backtest for the initial period...")
     first_rebalance_date = pd.to_datetime(rebalance_results.iloc[0]["date"])
     seed_period_returns = asset_returns.loc[BACKTEST_START_DATE:first_rebalance_date]
-    
+
     initial_universe = rebalance_results.iloc[0]["universe"]
     ew_seed_weights = pd.Series(1.0 / len(initial_universe), index=initial_universe)
-    
+
     seed_returns = (seed_period_returns[initial_universe] * ew_seed_weights).sum(axis=1)
     seed_returns = seed_returns.loc[seed_returns.index < first_rebalance_date]
     logging.info(f"Generated {len(seed_returns)} days of seed returns.")
 
     # 2. Combine seed returns with the cost-adjusted backtest returns
     logging.info("Combining seed returns with main backtest returns...")
-    logging.info(f"Seed returns shape: {seed_returns.shape}, Index: {seed_returns.index.min()} to {seed_returns.index.max()}")
-    logging.info(f"Portfolio returns shape: {portfolio_returns.shape}, Index: {portfolio_returns.index.min()} to {portfolio_returns.index.max()}")
+    logging.info(
+        f"Seed returns shape: {seed_returns.shape}, Index: {seed_returns.index.min()} to {seed_returns.index.max()}"
+    )
+    logging.info(
+        f"Portfolio returns shape: {portfolio_returns.shape}, Index: {portfolio_returns.index.min()} to {portfolio_returns.index.max()}"
+    )
     full_period_returns = pd.concat([seed_returns, portfolio_returns])
     full_period_returns.name = "Baseline_CVaR"
-    logging.info(f"Full period returns generated. Shape: {full_period_returns.shape}, Index: {full_period_returns.index.min()} to {full_period_returns.index.max()}")
+    logging.info(
+        f"Full period returns generated. Shape: {full_period_returns.shape}, Index: {full_period_returns.index.min()} to {full_period_returns.index.max()}"
+    )
 
     # 4. Create a corresponding daily weights dataframe for the full period
     logging.info("Generating full period weights...")
@@ -214,9 +224,15 @@ async def main():
         seed_weights_df = seed_weights_df.fillna(0)
 
     full_period_weights = pd.concat([seed_weights_df, daily_weights])
-    full_period_weights = full_period_weights.loc[~full_period_weights.index.duplicated(keep='first')]
-    full_period_weights = full_period_weights.reindex(full_period_returns.index, method='ffill').fillna(0)
-    logging.info(f"Full period weights generated. Shape: {full_period_weights.shape}, Index: {full_period_weights.index.min()} to {full_period_weights.index.max()}")
+    full_period_weights = full_period_weights.loc[
+        ~full_period_weights.index.duplicated(keep="first")
+    ]
+    full_period_weights = full_period_weights.reindex(
+        full_period_returns.index, method="ffill"
+    ).fillna(0)
+    logging.info(
+        f"Full period weights generated. Shape: {full_period_weights.shape}, Index: {full_period_weights.index.min()} to {full_period_weights.index.max()}"
+    )
 
     # 3. Generate Cumulative Index
     logging.info("Generating cumulative index...")
@@ -226,14 +242,13 @@ async def main():
 
     # --- Save all results ---
     logging.info("Saving all backtest artifacts...")
-    results_path = Path("results")
-    results_path.mkdir(exist_ok=True)
+    RESULTS_DIR.mkdir(exist_ok=True)
 
-    full_period_returns.to_csv(results_path / "baseline_daily_returns.csv", header=True)
-    logging.info(f"Saved full period returns to {results_path / 'baseline_daily_returns.csv'}")
+    full_period_returns.to_csv(RESULTS_DIR / "baseline_daily_returns.csv", header=True)
+    logging.info(f"Saved full period returns to {RESULTS_DIR / 'baseline_daily_returns.csv'}")
 
-    index_level.to_csv(results_path / "baseline_cvar_index.csv", header=True)
-    logging.info(f"Saved cumulative index to {results_path / 'baseline_cvar_index.csv'}")
+    index_level.to_csv(RESULTS_DIR / "baseline_cvar_index.csv", header=True)
+    logging.info(f"Saved cumulative index to {RESULTS_DIR / 'baseline_cvar_index.csv'}")
 
     rebalance_df = pd.DataFrame(rebalance_results).set_index("date")
 
@@ -257,10 +272,14 @@ async def main():
             seed_period_dates = seed_period_dates[seed_period_dates < first_rebalance_date_ew]
 
             if not seed_period_dates.empty:
-                seed_weights_df = pd.DataFrame(index=seed_period_dates, columns=UNIVERSE_TICKERS).fillna(0)
+                seed_weights_df = pd.DataFrame(
+                    index=seed_period_dates, columns=UNIVERSE_TICKERS
+                ).fillna(0)
                 seed_weights_df[initial_universe_ew] = ew_seed_weights_val
                 all_benchmark_weights.append(seed_weights_df)
-                logging.info(f"Created seed weights for Equal-Weighted benchmark for {len(seed_period_dates)} days.")
+                logging.info(
+                    f"Created seed weights for Equal-Weighted benchmark for {len(seed_period_dates)} days."
+                )
 
     for i in range(len(rebalance_dates)):
         start_period = rebalance_dates[i]
@@ -282,8 +301,8 @@ async def main():
         net_ew_daily_returns = pd.Series()
     else:
         ew_daily_weights = pd.concat(all_benchmark_weights)
-        ew_daily_weights = ew_daily_weights.loc[~ew_daily_weights.index.duplicated(keep='first')]
-        ew_daily_weights = ew_daily_weights.reindex(asset_returns.index, method='ffill').fillna(0)
+        ew_daily_weights = ew_daily_weights.loc[~ew_daily_weights.index.duplicated(keep="first")]
+        ew_daily_weights = ew_daily_weights.reindex(asset_returns.index, method="ffill").fillna(0)
         ew_daily_weights = ew_daily_weights.loc[START_DATE:END_DATE]
 
         # Calculate gross daily returns for the benchmark
@@ -318,16 +337,17 @@ async def main():
     # Ensure benchmark returns are aligned with portfolio returns for metric calculation
     # Use the net-of-cost equal-weighted benchmark for a fair comparison
     aligned_benchmark = net_ew_daily_returns.reindex(portfolio_returns.index).ffill()
-    raw_metrics = calculate_raw_metrics(portfolio_returns, aligned_benchmark, daily_weights=daily_weights)
+    raw_metrics = calculate_raw_metrics(
+        portfolio_returns, aligned_benchmark, daily_weights=daily_weights
+    )
     display_metrics = format_metrics_for_display(raw_metrics, portfolio_returns)
 
     # --- Save Results ---
     try:
-        results_path = Path("results")
-        results_path.mkdir(exist_ok=True)
+        RESULTS_DIR.mkdir(exist_ok=True)
 
         # Save rebalance weights
-        weights_path = results_path / "baseline_cvar_rebalance_weights_2010-2024.csv"
+        weights_path = RESULTS_DIR / "baseline_cvar_rebalance_weights_2010-2024.csv"
         logging.info(f"Attempting to save rebalance weights to {weights_path}...")
         rebalance_results_to_save = rebalance_results.copy()
         if "weights" in rebalance_results_to_save.columns:
@@ -338,16 +358,18 @@ async def main():
         rebalance_results_to_save.to_csv(weights_path)
 
         # Save Equal-Weighted benchmark results
-        ew_weights_path = results_path / "equal_weighted_daily_weights.csv"
-        ew_returns_path = results_path / "equal_weighted_daily_returns.csv"
+        ew_weights_path = RESULTS_DIR / "equal_weighted_daily_weights.csv"
+        ew_returns_path = RESULTS_DIR / "equal_weighted_daily_returns.csv"
         ew_daily_weights.to_csv(ew_weights_path)
         net_ew_daily_returns.to_csv(ew_returns_path, header=["Equal_Weighted"])
         logging.info("Successfully saved Equal-Weighted benchmark weights and returns.")
 
         # Save daily weights for turnover calculation
-        daily_weights_path = results_path / "baseline_daily_weights.csv"
+        daily_weights_path = RESULTS_DIR / "baseline_daily_weights.csv"
         if not full_period_weights.empty:
-            logging.info(f"Daily weights DataFrame has shape {full_period_weights.shape}. Saving to {daily_weights_path}...")
+            logging.info(
+                f"Daily weights DataFrame has shape {full_period_weights.shape}. Saving to {daily_weights_path}..."
+            )
             full_period_weights.to_csv(daily_weights_path)
             logging.info(f"Successfully saved daily weights to {daily_weights_path}")
         else:
@@ -356,13 +378,13 @@ async def main():
         logging.info("Successfully saved rebalance weights.")
 
         # Save performance metrics
-        metrics_path = results_path / "baseline_cvar_performance_metrics.csv"
+        metrics_path = RESULTS_DIR / "baseline_cvar_performance_metrics.csv"
         logging.info(f"Attempting to save metrics to {metrics_path}...")
         raw_metrics.to_csv(metrics_path, header=True)
         logging.info("Successfully saved metrics.")
 
         # Save daily returns for the full 2010-2024 period
-        returns_path = results_path / "baseline_daily_returns.csv"
+        returns_path = RESULTS_DIR / "baseline_daily_returns.csv"
         logging.info(f"Attempting to save daily returns to {returns_path}...")
 
         # Align all series to the full backtest period for a comprehensive comparison file
@@ -396,7 +418,7 @@ async def main():
         all_returns.to_csv(returns_path)
         logging.info("Successfully saved daily returns.")
 
-        logging.info(f"Results saved to {results_path.resolve()}")
+        logging.info(f"Results saved to {RESULTS_DIR.resolve()}")
 
     except Exception as e:
         logging.error(f"CRITICAL: Failed to save results to disk: {e}")

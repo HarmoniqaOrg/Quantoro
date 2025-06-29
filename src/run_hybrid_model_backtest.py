@@ -7,12 +7,12 @@ This script runs a backtest of a hybrid strategy that combines:
 3. Alpha signals derived from filtered FMP data and Google Trends sentiment.
 """
 
+import logging
 import os
 import sys
-import logging
+
 import numpy as np
 import pandas as pd
-import asyncio
 from dotenv import load_dotenv
 from tqdm import tqdm
 
@@ -20,12 +20,12 @@ from tqdm import tqdm
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
-from src.data.loader import GoogleTrendsLoader, FmpDataLoader
-from src.data.processor import DataProcessor
-from src.optimization.cvar_optimizer import AlphaAwareCVaROptimizer
-from src.backtesting.metrics import calculate_raw_metrics, format_metrics_for_display
-from src.regime.ensemble_regime import EnsembleRegimeDetector
-from src.alpha.ml_model import MLAlphaModel
+from src.alpha.ml_model import MLAlphaModel  # noqa: E402
+from src.backtesting.metrics import calculate_raw_metrics, format_metrics_for_display  # noqa: E402
+from src.data.loader import FmpDataLoader, GoogleTrendsLoader  # noqa: E402
+from src.data.processor import DataProcessor  # noqa: E402
+from src.optimization.cvar_optimizer import AlphaAwareCVaROptimizer  # noqa: E402
+from src.regime.ensemble_regime import EnsembleRegimeDetector  # noqa: E402
 
 # --- Configuration ---
 LOG_LEVEL = logging.DEBUG

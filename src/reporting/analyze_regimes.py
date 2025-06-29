@@ -1,9 +1,11 @@
 # src/reporting/analyze_regimes.py
 
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 import os
+
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 
 # --- Configuration ---
 RESULTS_DIR = "results"
@@ -68,7 +70,6 @@ for i in range(len(analysis_df) - 1):
         ax.axvspan(start_date, end_date, color=risk_on_color, alpha=0.2, lw=0)
 
 # Create custom legend patches
-import matplotlib.patches as mpatches
 
 risk_off_patch = mpatches.Patch(color=risk_off_color, alpha=0.4, label="Risk-Off Regime")
 risk_on_patch = mpatches.Patch(color=risk_on_color, alpha=0.4, label="Risk-On Regime")

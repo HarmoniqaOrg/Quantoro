@@ -1,8 +1,6 @@
 # src/reporting/utils.py
 
 import pandas as pd
-import numpy as np
-import os
 
 
 def read_file_content(file_path: str) -> str:

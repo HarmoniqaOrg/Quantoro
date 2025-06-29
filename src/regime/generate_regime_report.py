@@ -58,8 +58,6 @@ def generate_regime_plot(prices: pd.DataFrame, results_dir: str):
     )
 
     # Shade the background based on the regime
-    start_date = regimes.index.min()
-    end_date = regimes.index.max()
 
     ax.fill_between(
         regimes.index,

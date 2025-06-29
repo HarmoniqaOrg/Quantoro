@@ -11,8 +11,7 @@ scs>=3.0.0
 
 # Machine Learning
 scikit-learn==1.5.1
-scipy==1.14.0
-pytest==8.3.2
+ruff==0.5.5
 boruta==0.4.3
 hmmlearn==0.3.0
 arch==6.3.0
@@ -43,9 +42,8 @@ lxml>=4.9.1
 
 # Development tools
 black>=22.0.0,<23.0.0
-flake8>=4.0.0,<5.0.0
 mypy>=0.950,<1.0.0
-pytest>=7.0.0,<8.0.0
+pytest>=8.3.2,<9.0.0
 pytest-asyncio>=0.18.0,<1.0.0
 pytest-cov>=3.0.0,<4.0.0
 tqdm>=4.62.0,<5.0.0

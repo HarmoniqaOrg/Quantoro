@@ -76,9 +76,11 @@ if __name__ == "__main__":
     # Calculate log returns
     log_returns = processor.calculate_returns(cleaned_prices, log_returns=True)
     print("\nLog Returns:")
-    print(log_returns.head())
+    if log_returns is not None:
+        print(log_returns.head())
 
     # Calculate simple returns
     simple_returns = processor.calculate_returns(cleaned_prices, log_returns=False)
     print("\nSimple Returns:")
-    print(simple_returns.head())
+    if simple_returns is not None:
+        print(simple_returns.head())

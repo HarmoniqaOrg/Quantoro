@@ -93,8 +93,10 @@ class FmpDataLoader:
                     df = df.set_index("date").sort_index()
                     df = df[["marketCap"]]
                     df.to_csv(cache_file)
-                    # Filter to the requested date range
-                    filtered_df = df.loc[start_date:end_date]
+                    # Filter to the requested date range using type-safe integer-location slicing
+                    start_idx = df.index.searchsorted(pd.to_datetime(start_date), side="left")
+                    end_idx = df.index.searchsorted(pd.to_datetime(end_date), side="right")
+                    filtered_df = df.iloc[start_idx:end_idx]
                     return filtered_df["marketCap"] if not filtered_df.empty else None
             except Exception as e:
                 logging.error(f"Exception for {ticker} market cap data: {e}")
@@ -192,7 +194,10 @@ class GoogleTrendsLoader:
         cache_file = self.cache_dir / f"{ticker}_trends.csv"
         if cache_file.exists():
             df = pd.read_csv(cache_file, index_col="date", parse_dates=True)
-            return df.loc[start_date:end_date]
+            # Use type-safe integer-location slicing to avoid mypy errors
+            start_idx = df.index.searchsorted(pd.to_datetime(start_date), side="left")
+            end_idx = df.index.searchsorted(pd.to_datetime(end_date), side="right")
+            return df.iloc[start_idx:end_idx]
 
         try:
             # Build payload for the specific ticker and timeframe
