@@ -25,7 +25,8 @@ def generate_task_b_report():
         baseline_returns_full = pd.read_csv(os.path.join(RESULTS_DIR, "task_a_baseline_daily_returns.csv"), index_col=0, parse_dates=True).squeeze()
         baseline_returns = baseline_returns_full.loc["2020-01-01":].rename("Baseline_CVaR")
         regime_returns = pd.read_csv(os.path.join(RESULTS_DIR, "task_b_regime_aware_daily_returns.csv"), index_col=0, parse_dates=True).squeeze()
-        benchmark_returns = pd.read_csv(os.path.join(RESULTS_DIR, "spy_daily_returns.csv"), index_col=0, parse_dates=True).squeeze().loc["2020-01-01":].rename("SPY")
+        SPY_RETURNS_PATH = os.path.join(RESULTS_DIR, "spy_daily_returns_2020-2024.csv")
+        benchmark_returns = pd.read_csv(SPY_RETURNS_PATH, index_col=0, parse_dates=True).squeeze().loc["2020-01-01":].rename("SPY")
     except FileNotFoundError as e:
         print(f"Error: Could not find a required data file. {e}")
         print("Please ensure all backtests have run successfully with the latest changes.")

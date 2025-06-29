@@ -40,6 +40,7 @@ report: run-all
 	@echo "--- Consolidating results and generating final report ---"
 	python -m src.utils.generate_task_b_report
 	python -m src.reporting.consolidate_results
+	python -m src.reporting.run_visualizations
 	python -m src.reporting.generate_final_report
 	@echo "--- Final report generated successfully --- "
 
